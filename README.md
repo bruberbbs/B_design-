@@ -1,154 +1,108 @@
-<div align="center">
+# Estudo de Lote
 
-# AI Website Cloner Template
+Ferramenta web para **estudo de viabilidade de lotes** em um mapa 3D: clique em um lote e veja na hora os dados do terreno, os parâmetros de zoneamento, o volume que dá para construir, o número de unidades e vagas e a insolação de cada fachada.
 
-### Clone any website with one command
+![Mapa 3D com lotes, edificações e faixa de APP](docs/screenshots/mapa.png)
 
-Give your AI coding agent a URL and watch it recreate the website as a clean Next.js app.
+> **Atenção:** os dados que acompanham o projeto (cidade, lotes, ruas e parâmetros de zoneamento) são **fictícios**, gerados por código. Antes de usar para decisões reais, troque-os pelo cadastro e pela lei de zoneamento do seu município — veja [Usando dados reais](#usando-dados-reais).
 
-**Best results with [Claude Code](https://docs.anthropic.com/en/docs/claude-code) + Opus 5.5. Also supports Codex, Cursor, and OpenCode.**
+## Funcionalidades
 
-[![Use this template](https://img.shields.io/badge/Use_this_template-Create_your_copy-2ea44f?style=for-the-badge&logo=github&logoColor=white)](https://github.com/JCodesMore/ai-website-cloner-template/generate) [![Discord](https://img.shields.io/badge/Join_the_community-Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/hrTSX5yTpB)
+- **Mapa 3D** com quadras, lotes, edificações existentes, rio com faixa de APP e área de preservação. Arraste para mover, use o botão direito para girar e a roda do mouse para zoom. Alterna entre **2D** e **3D**.
+- **Busca por inscrição** (ex.: `01.02.031.0001`): encontra o lote e leva o mapa até ele.
+- **Um lote / Vários lotes**: no modo "Vários lotes", clique em lotes vizinhos para somá-los em um único estudo (remembramento).
+- **Painel do lote**, com cinco abas:
+  - **Resumo** — área, testada, cotas, desnível, declividade, rua de frente, total construído, limite pelo índice de aproveitamento (IA), pavimentos, vagas e unidades.
+  - **Zoneamento** — parâmetros da lei lado a lado com os do estudo, com ✓ / ⚠ para cada item.
+  - **Estudo de massa** — escolha o número de pavimentos e, se quiser, use o IA máximo (outorga onerosa). O volume aparece no mapa, pavimento por pavimento, respeitando recuos, taxa de ocupação e APP.
+  - **Unidades** — uso residencial, comercial ou misto, área média por unidade/sala e eficiência; calcula unidades, salas, área privativa e vagas.
+  - **Análise solar** — horas de sol direto em cada fachada no inverno, no equinócio e no verão, nascer e pôr do sol, e sombras em tempo real no mapa conforme data e hora.
+- **Banco de estudos** — salve, atualize, reabra no mapa e apague estudos (ficam guardados no navegador).
+- **Impressão em A4** — relatório com imagem da cena, dados do terreno, zoneamento e resultado do estudo.
+- **Camadas** — liga/desliga edificações, lotes, zoneamento (cores por zona), APP, nomes de ruas e status de obras.
+- **Responsivo** — no celular o painel vira uma folha na parte de baixo da tela.
 
-[Quick Start](#quick-start) · [Watch Demo](#demo) · [Supported Platforms](#supported-platforms)
+| Análise solar | Vários lotes |
+| --- | --- |
+| ![Análise solar com sombras](docs/screenshots/analise-solar.png) | ![Estudo com dois lotes somados](docs/screenshots/varios-lotes.png) |
 
-<a href="https://github.com/JCodesMore/ai-website-cloner-template/blob/master/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT License" /></a> <a href="https://github.com/JCodesMore/ai-website-cloner-template"><img src="https://img.shields.io/github/stars/JCodesMore/ai-website-cloner-template?style=flat" alt="Stars" /></a> <img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/JCodesMore/ai-website-cloner-template/badges/token-badge.json" alt="tokens" />
+## Como rodar
 
-  <a href="https://trendshift.io/repositories/24302?utm_source=repository-badge&amp;utm_medium=badge&amp;utm_campaign=badge-repository-24302" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/repositories/24302" alt="JCodesMore%2Fai-website-cloner-template | Trendshift" width="250" height="55" /></a> <a href="https://www.star-history.com/jcodesmore/ai-website-cloner-template/"><picture><source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/badge?repo=JCodesMore/ai-website-cloner-template&amp;theme=dark" /><source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/badge?repo=JCodesMore/ai-website-cloner-template" /><img alt="Star History Global Rank" src="https://api.star-history.com/badge?repo=JCodesMore/ai-website-cloner-template" width="216" height="55" /></picture></a>
+Pré-requisito: [Node.js](https://nodejs.org/) 24 ou mais recente.
 
-</div>
-
----
-
-## Demo
-
-[![Watch the demo](docs/design-references/comparison.png)](https://youtu.be/O669pVZ_qr0)
-
-> Click the image above to watch the full demo on YouTube.
-
-## Quick Start
-
-### 1. Set up your project
-
-**Recommended: ask your agent.** Paste this into Codex, Claude Code, or your coding agent:
-
-```text
-Set up https://github.com/JCodesMore/ai-website-cloner-template
-as a standalone project in a new folder on my computer.
-Ask me where to put it. Clone the repository, remove its origin remote,
-install dependencies, and run npm run check. Leave it ready for me
-to clone a website.
+```bash
+git clone https://github.com/bruberbbs/B_design-.git
+cd B_design-
+npm install
+npm run dev
 ```
 
-**Or create your own GitHub repository:**
+Abra <http://localhost:3000>.
 
-[![Use this template](https://img.shields.io/badge/Use_this_template-Create_your_copy-2ea44f?style=for-the-badge&logo=github&logoColor=white)](https://github.com/JCodesMore/ai-website-cloner-template/generate)
+### Outros comandos
 
-Give it a name and click **Create repository**. Then give your agent the new repository's link and ask it to clone it onto your computer, install dependencies, and run `npm run check`.
-
-### 2. Clone a website
-
-Open the project in your agent with browser access enabled. In Claude Code or Cursor, run:
-
-```text
-/clone-website https://example.com
+```bash
+npm run build      # build de produção
+npm run start      # serve o build de produção
+npm run lint       # ESLint
+npm run typecheck  # checagem de tipos do TypeScript
+npm run check      # lint + typecheck + build
 ```
 
-Replace the URL with the website you want to recreate. Once it's built, ask your agent for any changes you want.
+Com Docker:
 
-## Supported Platforms
+```bash
+docker compose up app --build   # produção
+docker compose up dev --build   # desenvolvimento, na porta 3001
+```
 
-| Agent                                                         | Status                     |
-| ------------------------------------------------------------- | -------------------------- |
-| [Claude Code](https://docs.anthropic.com/en/docs/claude-code) | **Recommended** — Opus 5.5 |
-| [Codex CLI](https://github.com/openai/codex)                  | Supported                  |
-| [OpenCode](https://opencode.ai/)                              | Supported                  |
-| [Cursor](https://cursor.com/)                                 | Supported                  |
+## Usando dados reais
 
-## Prerequisites
+Toda a parte de dados e cálculo fica em `src/lib/estudo/`:
 
-- [Node.js](https://nodejs.org/) 24+
-- An AI coding agent (see [Supported Platforms](#supported-platforms))
+| Arquivo | O que faz | O que trocar |
+| --- | --- | --- |
+| `zoning.ts` | Parâmetros de cada zona: IA básico e máximo, taxa de ocupação, permeabilidade, gabarito, altura do pavimento, recuos e usos. | Os valores da lei de zoneamento / plano diretor do seu município. |
+| `city.ts` | Gera a cidade fictícia: quadras, lotes (com inscrição, zona, testada e frente), ruas, edificações, rio, APP e relevo (`elevation`). | Substituir `generateCity()` por uma função que leia o cadastro real (por exemplo, um GeoJSON de lotes da prefeitura) e devolva o mesmo formato `City`. |
+| `study.ts` | Cálculos do estudo: projeção, total construído, IA, unidades, vagas e a análise solar. | Regras de vagas, eficiência padrão e a latitude (`LATITUDE`, hoje 27,15° S). |
 
-## Tech Stack
+Pontos de atenção ao trocar os dados:
 
-- **Next.js 16** — App Router, React 19, TypeScript strict
-- **shadcn/ui** — Base UI primitives + Tailwind CSS v4
-- **Tailwind CSS v4** — oklch design tokens
-- **Lucide React** — default icons (replaced by extracted SVGs during cloning)
+- Os lotes hoje são **retângulos alinhados aos eixos** (coordenadas em metros, `x` = leste, `z` = sul). Lotes reais têm polígonos irregulares: será preciso adaptar o desenho em `MapScene.tsx`, o clique (que hoje testa se o ponto está dentro do retângulo) e o cálculo da projeção em `study.ts`.
+- O relevo vem da função `elevation(x, z)`. Com dados reais, troque-a por uma consulta a um modelo digital de terreno ou às curvas de nível.
+- As regras de vagas (1 por unidade, 2 acima de 120 m², 1 a cada 50 m² de comércio) são exemplos.
 
-## How It Works
-
-The `/clone-website` skill follows four steps:
-
-1. **Map** — map source URLs to local routes and preserve existing work.
-2. **Observe** — inspect desktop/mobile pages, extract real assets and fonts, and exercise alternate states.
-3. **Build** — implement editable components and working interactions; delegate independent sections when useful.
-4. **Compare** — review source and local pages at matched sizes/states, repair visible differences, and run the production check.
-
-Framer pages and animated sites have focused inspection guidance for responsive variants, media, sticky scenes, and scroll/time-driven motion. Direct HTTP or asset tools handle extraction where practical; browser comparisons establish appearance and behavior. Deliverables include route mappings, run instructions, comparison screenshots, and any remaining gaps.
-
-## Use Cases
-
-- **Platform migration** — rebuild a site you own from WordPress/Webflow/Squarespace into a modern Next.js codebase
-- **Lost source code** — your site is live but the repo is gone, the developer left, or the stack is legacy. Get the code back in a modern format
-- **Learning** — deconstruct how production sites achieve specific layouts, animations, and responsive behavior by working with real code
-
-## Not Intended For
-
-- **Phishing or impersonation** — this project must not be used for deceptive purposes, impersonation, or any activity that breaks the law.
-- **Passing off someone's design as your own** — logos, brand assets, and original copy belong to their owners.
-- **Violating terms of service** — some sites explicitly prohibit scraping or reproduction. Check first.
-
-## Project Structure
+## Estrutura do projeto
 
 ```
 src/
-  app/              # Next.js routes
-  components/       # React components
-    ui/             # shadcn/ui primitives
-    sites/<site>/   # Source-specific components and extracted SVGs
-  lib/utils.ts      # cn() utility
-  types/            # TypeScript interfaces
-  hooks/            # Custom React hooks
-public/
-  sites/<site>/     # Source-specific images, fonts, videos, and other assets
-docs/
-  research/<site>/  # Page brief, asset map, and inspection evidence
-  design-references/ # Screenshots
-.agents/skills/
-  clone-website/    # Canonical skill and inspection reference
-.claude/commands/
-  clone-website.md  # Thin Claude Code bridge
-AGENTS.md           # Agent instructions (single source of truth)
-CLAUDE.md           # Claude Code config (imports AGENTS.md)
+  app/
+    page.tsx              # página inicial (carrega o app só no navegador)
+    layout.tsx
+  components/estudo/
+    EstudoApp.tsx         # tela principal: busca, painel, barra inferior, banco de estudos
+    MapScene.tsx          # mapa 3D em three.js (cena, câmera, seleção, massa, sombras)
+    LotPanel.tsx          # abas Resumo, Zoneamento, Estudo de massa, Unidades e Análise solar
+    PrintReport.tsx       # relatório A4 para impressão
+    EstudoClient.tsx      # carregamento client-side (WebGL)
+    types.ts
+  lib/estudo/
+    city.ts               # dados da cidade e do terreno
+    zoning.ts             # parâmetros de zoneamento
+    study.ts              # cálculos do estudo e da insolação
 ```
 
-## Commands
+## Tecnologias
 
-```bash
-npm run dev    # Start dev server
-npm run build  # Production build
-npm run lint   # ESLint check
-npm run typecheck # TypeScript check
-npm run check  # Run lint + typecheck + build
-```
+- [Next.js 16](https://nextjs.org/) (App Router), React 19 e TypeScript
+- [three.js](https://threejs.org/) para o mapa 3D e as sombras
+- Tailwind CSS v4 e ícones [Lucide](https://lucide.dev/)
 
-### If using docker
+## Limitações atuais
 
-```bash
-docker compose up app --build # build and run the app
-docker compose up dev --build # run the app in dev mode on port 3001
-```
+- Não há login: os estudos ficam salvos apenas no navegador (`localStorage`) e não são compartilhados entre dispositivos.
+- Os dados e os parâmetros urbanísticos são ilustrativos. O resultado é um **estudo preliminar** e não substitui a consulta de viabilidade na prefeitura.
 
-## Agent Support
+## Origem e licença
 
-The project keeps one portable Agent Skill at `.agents/skills/clone-website/`. Codex, Cursor, and OpenCode read it directly. Claude Code uses the small command bridge at `.claude/commands/clone-website.md` so `/clone-website` and its arguments continue to work without exposing a duplicate skill to the other agents.
-
-## Star History
-
-![Star History Chart](docs/assets/star-history.png)
-
-## License
-
-MIT
+Projeto criado a partir do template [ai-website-cloner-template](https://github.com/JCodesMore/ai-website-cloner-template), distribuído sob a licença MIT (veja [LICENSE](LICENSE)).
