@@ -15,6 +15,7 @@ import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPa
 import { mergeVertices } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { ModelKit, type BuildingModel, type UnitModel } from "./models";
 import { ParticleSystem } from "./particles";
+import type { GroundPattern } from "./textures";
 
 // Qualidade gráfica: "max" liga oclusão de ambiente, brilho, antisserrilhado e luzes de explosão.
 export type Quality = "max" | "balanced" | "low";
@@ -109,6 +110,9 @@ export class GameRenderer {
   private biome: Biome;
   private liquidTiles: number[] = [];
   private liquidTex: THREE.CanvasTexture | null = null;
+  private waterTime = { value: 0 };
+  private cover: { mesh: THREE.InstancedMesh; total: number }[] = [];
+  private coverByTile = new Map<number, [THREE.InstancedMesh, number][]>();
   private ambientAcc = 0;
   private kit: ModelKit;
   private ghostKit: ModelKit;
@@ -247,6 +251,7 @@ export class GameRenderer {
     this.buildTerrain();
     this.water = this.buildWater();
     this.buildProps();
+    this.buildGroundCover();
     this.buildOre();
 
     this.fire = new ParticleSystem(2500, true);
@@ -414,7 +419,7 @@ export class GameRenderer {
       const t = terrain[i];
       const x = (i % w) * px;
       const z = Math.floor(i / w) * px;
-      const n = t === Terrain.Grass || t === Terrain.Tree ? 4 : t === Terrain.Sand ? 2 : 0;
+      const n = t === Terrain.Grass || t === Terrain.Tree ? 2 : 0;
       for (let k = 0; k < n; k++) {
         const ox = x + rnd() * px;
         const oz = z + rnd() * px;
@@ -428,7 +433,7 @@ export class GameRenderer {
           ctx.beginPath();
           ctx.ellipse(ox, oz, 1.6 + rnd() * 1.4, 0.8 + rnd() * 0.6, rnd() * Math.PI, 0, Math.PI * 2);
           ctx.fill();
-          if (B.flowers && rnd() < 0.015) {
+          if (B.flowers && rnd() < 0.006) {
             ctx.fillStyle = B.flowers[Math.floor(rnd() * B.flowers.length)];
             ctx.beginPath();
             ctx.arc(ox, oz, 1.1, 0, Math.PI * 2);
@@ -537,26 +542,107 @@ export class GameRenderer {
       pos.setY(i, y);
     }
     geo.computeVertexNormals();
-    const mat = new THREE.MeshStandardMaterial({ map: this.terrainTex, roughness: 0.96, metalness: 0 });
+    // Mistura por camadas: chão principal, margem/terra e rocha, cada uma com textura de
+    // detalhe e relevo próprios; o "splat" diz quanto de cada camada há em cada ponto.
+    const splat = this.splatTexture(wb);
+    const P: Record<string, [GroundPattern, GroundPattern, GroundPattern]> = {
+      temperate: ["grass", "soil", "rock"],
+      desert: ["sand", "soil", "rock"],
+      snow: ["snow", "soil", "rock"],
+      volcanic: ["ash", "soil", "rock"],
+    };
+    const [p0, p1, p2] = P[this.game.map.biome] ?? P.temperate;
+    const L0 = this.kit.tex.ground(p0, 3);
+    const L1 = this.kit.tex.ground(p1, 4);
+    const L2 = this.kit.tex.ground(p2, 5);
+    const mat = new THREE.MeshStandardMaterial({ map: this.terrainTex, roughness: 0.94, metalness: 0, normalMap: L0.normal });
     this.fogify(mat);
-    // grão fino repetido: dá textura de terra/areia de perto
-    const detail = this.kit.tex.grain(53);
     const fogCompile = mat.onBeforeCompile;
     mat.onBeforeCompile = (sh, r) => {
       fogCompile(sh, r);
-      sh.uniforms.uDetail = { value: detail };
-      sh.fragmentShader = "uniform sampler2D uDetail;\n" + sh.fragmentShader.replace(
-        "#include <map_fragment>",
-        `#include <map_fragment>
-        float dt1 = texture2D(uDetail, vMapUv * 150.0).r;
-        float dt2 = texture2D(uDetail, vMapUv * 37.0).r;
-        diffuseColor.rgb *= 0.72 + 0.34 * dt1 + 0.16 * dt2;`,
-      );
+      Object.assign(sh.uniforms, {
+        uSplat: { value: splat },
+        uD0: { value: L0.map },
+        uD1: { value: L1.map },
+        uD2: { value: L2.map },
+        uN0: { value: L0.normal },
+        uN1: { value: L1.normal },
+        uN2: { value: L2.normal },
+        uTiles: { value: new THREE.Vector2(w, h) },
+      });
+      sh.fragmentShader =
+        "uniform sampler2D uSplat, uD0, uD1, uD2, uN0, uN1, uN2;\nuniform vec2 uTiles;\n" +
+        sh.fragmentShader
+          .replace(
+            "#include <map_fragment>",
+            `#include <map_fragment>
+            vec2 gUV = vMapUv * uTiles / 2.3;
+            vec3 sp = texture2D(uSplat, vMapUv).rgb;
+            vec3 d0 = mix(texture2D(uD0, gUV).rgb, texture2D(uD0, gUV * 0.29 + 0.37).rgb, 0.4);
+            vec3 d1 = texture2D(uD1, gUV * 1.25 + 0.13).rgb;
+            vec3 d2 = texture2D(uD2, gUV * 0.7).rgb;
+            float l0 = dot(d0, vec3(0.333));
+            float gWs = smoothstep(0.38, 0.62, sp.r + (dot(d1, vec3(0.333)) - l0) * 0.9);
+            float gWr = smoothstep(0.32, 0.6, sp.g + (dot(d2, vec3(0.333)) - 0.47) * 0.8);
+            vec3 det = mix(mix(d0, d1, gWs), d2, gWr);
+            diffuseColor.rgb *= det * 2.05;
+            float gWet = smoothstep(0.08, 0.5, sp.b) * (1.0 - gWr);
+            diffuseColor.rgb *= 1.0 - gWet * 0.28;`,
+          )
+          .replace(
+            "#include <roughnessmap_fragment>",
+            `#include <roughnessmap_fragment>
+            roughnessFactor = mix(roughnessFactor, 0.55, gWet * 0.7);
+            roughnessFactor = mix(roughnessFactor, 0.82, gWr);`,
+          )
+          .replace(
+            "vec3 mapN = texture2D( normalMap, vNormalMapUv ).xyz * 2.0 - 1.0;",
+            `vec3 gN0 = texture2D(uN0, gUV).xyz * 2.0 - 1.0;
+            vec3 gN1 = texture2D(uN1, gUV * 1.25 + 0.13).xyz * 2.0 - 1.0;
+            vec3 gN2 = texture2D(uN2, gUV * 0.7).xyz * 2.0 - 1.0;
+            vec3 mapN = normalize(mix(mix(gN0, gN1, gWs), gN2, gWr));`,
+          );
     };
-    mat.customProgramCacheKey = () => "fog-terrain-v2";
+    mat.customProgramCacheKey = () => "fog-terrain-v3";
     const mesh = new THREE.Mesh(geo, mat);
     mesh.receiveShadow = true;
     this.scene.add(mesh);
+  }
+
+  // Pesos das camadas por ponto: R = margem/terra, G = rocha, B = umidade (perto da água).
+  private splatTexture(waterBlur: Float32Array) {
+    const { w, h, terrain, oreMax } = this.game.map;
+    const small = document.createElement("canvas");
+    small.width = w;
+    small.height = h;
+    const sctx = small.getContext("2d")!;
+    const img = sctx.createImageData(w, h);
+    for (let i = 0; i < w * h; i++) {
+      const t = terrain[i];
+      const sec = t === Terrain.Sand || t === Terrain.Water ? 1 : t === Terrain.Tree ? 0.4 : oreMax[i] > 0 ? 0.35 : 0;
+      img.data[i * 4] = sec * 255;
+      img.data[i * 4 + 1] = t === Terrain.Rock ? 255 : 0;
+      img.data[i * 4 + 2] = Math.min(1, waterBlur[i] * 1.6) * 255;
+      img.data[i * 4 + 3] = 255;
+    }
+    sctx.putImageData(img, 0, 0);
+    const c = document.createElement("canvas");
+    c.width = w * 8;
+    c.height = h * 8;
+    const ctx = c.getContext("2d")!;
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    const mid = document.createElement("canvas");
+    mid.width = w * 3;
+    mid.height = h * 3;
+    const mctx = mid.getContext("2d")!;
+    mctx.imageSmoothingEnabled = true;
+    mctx.imageSmoothingQuality = "high";
+    mctx.drawImage(small, 0, 0, mid.width, mid.height);
+    ctx.drawImage(mid, 0, 0, c.width, c.height);
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.NoColorSpace;
+    return tex;
   }
 
   private buildWater() {
@@ -575,21 +661,159 @@ export class GameRenderer {
       emissiveIntensity: L.emissiveIntensity,
     });
     for (let i = 0; i < this.game.map.terrain.length; i++) if (this.game.map.terrain[i] === Terrain.Water) this.liquidTiles.push(i);
+    if (!L.texture) return this.buildRealWater(geo);
     if (L.texture) {
       const tex = this.liquidTexture(L.texture);
       mat.map = tex;
       mat.color.set("#ffffff");
       if (L.texture === "lava") {
+        // a cor vem do brilho próprio; a superfície iluminada fica escura (crosta)
+        mat.color.set("#4a2414");
         mat.emissiveMap = tex;
         mat.emissive.set("#ffffff");
       }
       this.liquidTex = tex;
+      if (L.texture === "ice") {
+        // gelo: leve relevo e reflexo do céu
+        const nrm = this.kit.tex.waterNormal().clone();
+        nrm.wrapS = nrm.wrapT = THREE.RepeatWrapping;
+        nrm.repeat.set(w / 7, h / 7);
+        nrm.needsUpdate = true;
+        mat.normalMap = nrm;
+        mat.normalScale.set(0.18, 0.18);
+        mat.envMap = this.skyEnv();
+        mat.envMapIntensity = 0.9;
+      }
     }
     this.fogify(mat);
     const m = new THREE.Mesh(geo, mat);
     m.receiveShadow = true;
     this.scene.add(m);
     return m;
+  }
+
+  // Água realista: cor por profundidade com espuma na margem, ondulações animadas e reflexo do céu.
+  private buildRealWater(geo: THREE.BufferGeometry) {
+    const { w, h, terrain } = this.game.map;
+    const wm = new Float32Array(w * h);
+    for (let i = 0; i < w * h; i++) wm[i] = terrain[i] === Terrain.Water ? 1 : 0;
+    const wb = this.blurGrid(wm, w, h, 3);
+    const desert = this.game.map.biome === "desert";
+    const shallow = new THREE.Color(desert ? "#7fd0c0" : "#7fb8b2");
+    const deep = new THREE.Color(desert ? "#2a8c95" : "#2f6f8e");
+    const px = 8;
+    const c = document.createElement("canvas");
+    c.width = w * px;
+    c.height = h * px;
+    const ctx = c.getContext("2d")!;
+    const img = ctx.createImageData(c.width, c.height);
+    const rnd = mulberry32(17);
+    const noise = new Float32Array(64 * 64).map(() => rnd());
+    const nz = (x: number, z: number) => noise[((Math.floor(z) & 63) * 64 + (Math.floor(x) & 63))];
+    const col = new THREE.Color();
+    for (let pz = 0; pz < c.height; pz++)
+      for (let pxi = 0; pxi < c.width; pxi++) {
+        const x = (pxi + 0.5) / px;
+        const z = (pz + 0.5) / px;
+        const fx = Math.min(w - 1.001, Math.max(0, x - 0.5));
+        const fz = Math.min(h - 1.001, Math.max(0, z - 0.5));
+        const x0 = Math.floor(fx);
+        const z0 = Math.floor(fz);
+        const tx = fx - x0;
+        const tz = fz - z0;
+        const a = wb[z0 * w + x0];
+        const b = wb[z0 * w + x0 + 1];
+        const cc = wb[(z0 + 1) * w + x0];
+        const d = wb[(z0 + 1) * w + x0 + 1];
+        const m = a + (b - a) * tx + (cc - a) * tz + (a - b - cc + d) * tx * tz;
+        const depth = Math.min(1, Math.max(0, (m - 0.5) / 0.4));
+        col.copy(shallow).lerp(deep, Math.pow(depth, 0.7));
+        // só aparece da linha d'água para dentro (a margem rebaixada fica como areia molhada)
+        const inside = Math.min(1, Math.max(0, (m - 0.4) / 0.06));
+        let alpha = (0.42 + depth * 0.4) * inside;
+        // espuma fina e falhada rente à margem
+        const n = nz(x * 2.3, z * 2.3) * 0.55 + nz(x * 6 + 11, z * 6) * 0.45;
+        const edge = Math.max(0, 1 - Math.abs(m - 0.45) / 0.035) * n;
+        if (edge > 0.45) {
+          const k = Math.min(1, (edge - 0.45) * 2.2);
+          col.lerp(new THREE.Color("#e8efea"), k * 0.8);
+          alpha = Math.max(alpha, 0.5 * k * inside + alpha * (1 - k));
+        }
+        const i = (pz * c.width + pxi) * 4;
+        img.data[i] = col.r * 255;
+        img.data[i + 1] = col.g * 255;
+        img.data[i + 2] = col.b * 255;
+        img.data[i + 3] = Math.min(1, alpha) * 255;
+      }
+    ctx.putImageData(img, 0, 0);
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.anisotropy = 4;
+    const nrm = this.kit.tex.waterNormal().clone();
+    nrm.wrapS = nrm.wrapT = THREE.RepeatWrapping;
+    nrm.repeat.set(w / 4.5, h / 4.5);
+    nrm.needsUpdate = true;
+    const mat = new THREE.MeshStandardMaterial({
+      map: tex,
+      transparent: true,
+      roughness: 0.07,
+      metalness: 0.05,
+      normalMap: nrm,
+      normalScale: new THREE.Vector2(0.45, 0.45),
+      envMap: this.skyEnv(),
+      envMapIntensity: 1.5,
+      depthWrite: false,
+    });
+    this.fogify(mat);
+    const fogCompile = mat.onBeforeCompile;
+    mat.onBeforeCompile = (sh, r) => {
+      fogCompile(sh, r);
+      sh.uniforms.uWT = this.waterTime;
+      sh.fragmentShader = "uniform float uWT;\n" + sh.fragmentShader.replace(
+        "vec3 mapN = texture2D( normalMap, vNormalMapUv ).xyz * 2.0 - 1.0;",
+        `vec3 mapN = normalize(
+          (texture2D(normalMap, vNormalMapUv + vec2(uWT * 0.021, uWT * 0.013)).xyz * 2.0 - 1.0) +
+          (texture2D(normalMap, vNormalMapUv * 1.63 + vec2(-uWT * 0.017, uWT * 0.024)).xyz * 2.0 - 1.0));`,
+      );
+    };
+    mat.customProgramCacheKey = () => "fog-water-v1";
+    const m = new THREE.Mesh(geo, mat);
+    m.receiveShadow = true;
+    m.renderOrder = 1;
+    this.scene.add(m);
+    return m;
+  }
+
+  // Céu simples (degradê) usado como reflexo da água.
+  private skyEnv() {
+    const c = document.createElement("canvas");
+    c.width = 256;
+    c.height = 128;
+    const ctx = c.getContext("2d")!;
+    const g = ctx.createLinearGradient(0, 0, 0, 128);
+    g.addColorStop(0, "#3f78bd");
+    g.addColorStop(0.42, "#9cc3e6");
+    g.addColorStop(0.5, "#e4eef4");
+    g.addColorStop(0.53, "#8f9a88");
+    g.addColorStop(1, "#4a5446");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, 256, 128);
+    // nuvens claras
+    const rnd = mulberry32(3);
+    for (let k = 0; k < 18; k++) {
+      ctx.fillStyle = `rgba(255,255,255,${0.12 + rnd() * 0.18})`;
+      ctx.beginPath();
+      ctx.ellipse(rnd() * 256, 18 + rnd() * 34, 18 + rnd() * 30, 4 + rnd() * 6, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    const tex = new THREE.CanvasTexture(c);
+    tex.mapping = THREE.EquirectangularReflectionMapping;
+    tex.colorSpace = THREE.SRGBColorSpace;
+    const pm = new THREE.PMREMGenerator(this.renderer);
+    const env = pm.fromEquirectangular(tex).texture;
+    pm.dispose();
+    tex.dispose();
+    return env;
   }
 
   // Textura procedural do líquido: lava com crosta e veios, ou gelo rachado.
@@ -698,7 +922,8 @@ export class GameRenderer {
       this.buildBiomeTrees(trees, rnd);
     } else {
       const trunkMat = new THREE.MeshStandardMaterial({ color: "#5a4632", roughness: 0.95 });
-      const crownMat = new THREE.MeshStandardMaterial({ color: "#ffffff", roughness: 0.92 });
+      const leaves = this.kit.tex.ground("grass", 21);
+      const crownMat = new THREE.MeshStandardMaterial({ color: new THREE.Color(1.35, 1.35, 1.35), roughness: 0.9, map: leaves.map, normalMap: leaves.normal, normalScale: new THREE.Vector2(1.4, 1.4) });
       this.fogify(trunkMat);
       this.fogify(crownMat);
       const trunks = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.06, 0.09, 0.4, 8), trunkMat, trees.length);
@@ -750,7 +975,8 @@ export class GameRenderer {
       }
     }
 
-    const rockMat = new THREE.MeshStandardMaterial({ color: "#ffffff", roughness: 0.93, map: this.kit.tex.concrete("#b8b2a6", 61, false) });
+    const rockTex = this.kit.tex.ground("rock", 9);
+    const rockMat = new THREE.MeshStandardMaterial({ color: new THREE.Color(1.05, 1.05, 1.05), roughness: 0.9, map: rockTex.map, normalMap: rockTex.normal, normalScale: new THREE.Vector2(1.2, 1.2) });
     this.fogify(rockMat);
     const rockMesh = new THREE.InstancedMesh(roughen(new THREE.DodecahedronGeometry(0.5, 1), 0.12, 11, true), rockMat, rocks.length);
     rocks.forEach((r, i) => {
@@ -1034,6 +1260,164 @@ export class GameRenderer {
     else this.shroudUniform.value.set(0.039, 0.055, 0.094);
     this.renderer.setSize(this.width, this.height, false);
     this.composer?.setSize(this.width, this.height);
+    this.applyCoverDensity();
+  }
+
+  // Vegetação rasteira e pedrinhas: menos instâncias nos modos mais leves.
+  private applyCoverDensity() {
+    const f = this.quality === "max" ? 1 : this.quality === "balanced" ? 0.55 : 0.2;
+    for (const c of this.cover) c.mesh.count = Math.floor(c.total * f);
+  }
+
+  private hideCover(tx: number, tz: number, w: number, h: number) {
+    const zero = new THREE.Matrix4().makeScale(0, 0, 0);
+    const touched = new Set<THREE.InstancedMesh>();
+    const W = this.game.map.w;
+    for (let z = tz; z < tz + h; z++)
+      for (let x = tx; x < tx + w; x++) {
+        const list = this.coverByTile.get(z * W + x);
+        if (!list) continue;
+        for (const [m, idx] of list) {
+          m.setMatrixAt(idx, zero);
+          touched.add(m);
+        }
+        this.coverByTile.delete(z * W + x);
+      }
+    for (const m of touched) m.instanceMatrix.needsUpdate = true;
+  }
+
+  // Tufos de grama (balançam ao vento), arbustos secos e pedrinhas espalhados pelo chão.
+  private buildGroundCover() {
+    const { w, h, terrain, oreMax, shade } = this.game.map;
+    const biome = this.game.map.biome;
+    const rnd = mulberry32(41);
+    const B = this.biome;
+    const gA = new THREE.Color(B.ground[0]);
+    const gB = new THREE.Color(B.ground[1]);
+    // tufo: lâminas finas em leque
+    const blades = (n: number, hMin: number, hMax: number, spread: number, seed: number) => {
+      const r = mulberry32(seed);
+      const pos: number[] = [];
+      for (let k = 0; k < n; k++) {
+        const a = r() * Math.PI * 2;
+        const ox = Math.cos(a) * r() * spread;
+        const oz = Math.sin(a) * r() * spread;
+        const hh = hMin + r() * (hMax - hMin);
+        const lean = 0.25 + r() * 0.5;
+        const lx = Math.cos(a) * hh * lean;
+        const lz = Math.sin(a) * hh * lean;
+        const bw = 0.012 + r() * 0.008;
+        const px = -Math.sin(a) * bw;
+        const pz = Math.cos(a) * bw;
+        pos.push(ox - px, 0, oz - pz, ox + px, 0, oz + pz, ox + lx, hh, oz + lz);
+      }
+      const g = new THREE.BufferGeometry();
+      g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+      const nor = new Float32Array(pos.length);
+      for (let i = 1; i < nor.length; i += 3) nor[i] = 1; // normais para cima: iluminação igual à do chão
+      g.setAttribute("normal", new THREE.BufferAttribute(nor, 3));
+      return g;
+    };
+    const swayMat = (rough: number) => {
+      const m = new THREE.MeshStandardMaterial({ color: "#ffffff", roughness: rough, metalness: 0, side: THREE.DoubleSide });
+      this.fogify(m);
+      const fc = m.onBeforeCompile;
+      m.onBeforeCompile = (sh, r) => {
+        fc(sh, r);
+        sh.uniforms.uWT = this.waterTime;
+        sh.vertexShader = "uniform float uWT;\n" + sh.vertexShader.replace(
+          "#include <begin_vertex>",
+          `#include <begin_vertex>
+          #ifdef USE_INSTANCING
+            vec2 ip = instanceMatrix[3].xz;
+          #else
+            vec2 ip = vec2(0.0);
+          #endif
+          float sw = sin(uWT * 1.7 + ip.x * 0.7 + ip.y * 0.5) * 0.5 + sin(uWT * 3.1 + ip.x * 1.9) * 0.25;
+          transformed.xz += vec2(0.6, 0.35) * sw * transformed.y * 0.35;`,
+        );
+      };
+      m.customProgramCacheKey = () => "fog-sway-v1";
+      return m;
+    };
+    type Spec = { geo: THREE.BufferGeometry; mat: THREE.Material; perTile: number; on: (t: number) => boolean; color: (i: number) => THREE.Color; scale: [number, number] };
+    const specs: Spec[] = [];
+    const grassy = (t: number) => t === Terrain.Grass || t === Terrain.Tree;
+    const ground = (i: number, k: number) => new THREE.Color().copy(gA).lerp(gB, shade[i]).multiplyScalar(k);
+    if (biome === "temperate") {
+      specs.push({
+        geo: blades(9, 0.09, 0.2, 0.06, 1),
+        mat: swayMat(0.85),
+        perTile: 3.2,
+        on: grassy,
+        color: (i) => ground(i, 0.5 + rnd() * 0.28).offsetHSL(0.015 + (rnd() - 0.5) * 0.03, 0.12, -0.02),
+        scale: [0.7, 1.35],
+      });
+    } else if (biome === "desert") {
+      specs.push({
+        geo: blades(12, 0.07, 0.17, 0.08, 2),
+        mat: swayMat(0.95),
+        perTile: 0.45,
+        on: (t) => t === Terrain.Grass,
+        color: () => new THREE.Color().setHSL(0.09 + rnd() * 0.04, 0.32, 0.2 + rnd() * 0.1),
+        scale: [0.7, 1.4],
+      });
+    } else if (biome === "snow") {
+      specs.push({
+        geo: blades(7, 0.06, 0.14, 0.05, 3),
+        mat: swayMat(0.95),
+        perTile: 0.35,
+        on: grassy,
+        color: () => new THREE.Color().setHSL(0.1, 0.25, 0.3 + rnd() * 0.12),
+        scale: [0.7, 1.2],
+      });
+    }
+    // pedrinhas
+    const pebMat = new THREE.MeshStandardMaterial({ color: "#ffffff", roughness: 0.9, metalness: 0 });
+    this.fogify(pebMat);
+    const rc = B.rockColor;
+    specs.push({
+      geo: roughen(new THREE.DodecahedronGeometry(0.045, 0), 0.012, 5, true),
+      mat: pebMat,
+      perTile: biome === "volcanic" ? 1.6 : biome === "desert" ? 1.0 : 0.3,
+      on: (t) => t === Terrain.Grass || t === Terrain.Sand,
+      color: () => new THREE.Color().setHSL(rc.h, rc.s + 0.05, Math.min(0.6, rc.l * 0.55 + rnd() * rc.lv * 0.8)),
+      scale: [0.5, 1.6],
+    });
+    const dummy = new THREE.Object3D();
+    for (const sp of specs) {
+      const items: { x: number; z: number; tile: number }[] = [];
+      for (let i = 0; i < w * h; i++) {
+        if (!sp.on(terrain[i]) || oreMax[i] > 0) continue;
+        let n = Math.floor(sp.perTile);
+        if (rnd() < sp.perTile - n) n++;
+        for (let k = 0; k < n; k++) items.push({ x: (i % w) + rnd(), z: Math.floor(i / w) + rnd(), tile: i });
+      }
+      // embaralha para que reduzir a contagem mantenha a distribuição uniforme
+      for (let i = items.length - 1; i > 0; i--) {
+        const j = Math.floor(rnd() * (i + 1));
+        [items[i], items[j]] = [items[j], items[i]];
+      }
+      const mesh = new THREE.InstancedMesh(sp.geo, sp.mat, Math.max(1, items.length));
+      items.forEach((it, idx) => {
+        const sc = sp.scale[0] + rnd() * (sp.scale[1] - sp.scale[0]);
+        dummy.position.set(it.x, 0.005, it.z);
+        dummy.rotation.set(0, rnd() * Math.PI * 2, 0);
+        dummy.scale.set(sc, sc * (0.8 + rnd() * 0.4), sc);
+        dummy.updateMatrix();
+        mesh.setMatrixAt(idx, dummy.matrix);
+        mesh.setColorAt(idx, sp.color(it.tile));
+        const list = this.coverByTile.get(it.tile) ?? [];
+        list.push([mesh, idx]);
+        this.coverByTile.set(it.tile, list);
+      });
+      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+      mesh.receiveShadow = true;
+      mesh.frustumCulled = false;
+      this.scene.add(mesh);
+      this.cover.push({ mesh, total: items.length });
+    }
+    this.applyCoverDensity();
   }
 
   private buildComposer() {
@@ -1254,6 +1638,7 @@ export class GameRenderer {
     model.root.position.set(b.tx + b.w / 2, 0, b.tz + b.h / 2);
     this.scene.add(model.root);
     this.padQueue.push({ tx: b.tx, tz: b.tz, w: b.w, h: b.h });
+    this.hideCover(b.tx - 1, b.tz - 1, b.w + 2, b.h + 2);
     // nova construção sobre ruínas: tira as ruínas
     for (let i = this.rubble.length - 1; i >= 0; i--) {
       const r = this.rubble[i];
@@ -2021,6 +2406,7 @@ export class GameRenderer {
     const LQ = this.biome.liquid;
     (this.water.material as THREE.MeshStandardMaterial).emissiveIntensity = LQ.emissiveIntensity + Math.sin(this.clock * 1.3) * LQ.pulse;
     this.ambientParticles(dt);
+    this.waterTime.value += dt;
     if (this.liquidTex && LQ.texture === "lava") {
       // a lava escorre devagar
       this.liquidTex.offset.x += dt * 0.006;

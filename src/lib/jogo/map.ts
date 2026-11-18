@@ -2,8 +2,11 @@
 
 import { ORE_TILE_MAX } from "./defs";
 
-export const MAP_W = 64;
-export const MAP_H = 64;
+// Os layouts abaixo foram desenhados para 64×64; o mapa real é 30% maior e as
+// posições são escaladas (larguras de rios, trilhas e campos ficam em tiles).
+const LAYOUT_SIZE = 64;
+export const MAP_W = 84;
+export const MAP_H = 84;
 
 export enum Terrain {
   Grass = 0,
@@ -68,6 +71,13 @@ function makeNoise(seed: number) {
     const d = lattice(xi + 1, yi + 1);
     return a + (b - a) * xf + (c - a) * yf + (a - b - c + d) * xf * yf;
   };
+}
+
+// Número pseudoaleatório estável por célula.
+function cellRand(x: number, z: number, seed: number) {
+  let h = Math.imul(x * 374761393 + z * 668265263 + seed * 2246822519, 1) >>> 0;
+  h = Math.imul(h ^ (h >>> 13), 1274126177) >>> 0;
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
 }
 
 export type MapId = "vale" | "dunas" | "fiorde" | "caldeira";
@@ -210,21 +220,36 @@ export function mapInfo(id: MapId) {
   return MAPS.find((m) => m.id === id) ?? MAPS[0];
 }
 
+// Escala as posições do layout para o tamanho real do mapa.
+function scaleLayout(L: Layout, k: number): Layout {
+  const seg = <T extends Seg>(r: T): T => ({ ...r, x0: r.x0 * k, z0: r.z0 * k, x1: r.x1 * k, z1: r.z1 * k });
+  return {
+    ...L,
+    river: L.river && { ...L.river, fords: L.river.fords.map((f) => f * k) },
+    lakes: L.lakes?.map((c) => ({ x: c.x * k, z: c.z * k, r: c.r * Math.sqrt(k) })),
+    channels: L.channels?.map(seg),
+    ridges: L.ridges.map(seg),
+    mesas: L.mesas && { ...L.mesas, scale: L.mesas.scale / k, minAcross: L.mesas.minAcross * k, maxAcross: L.mesas.maxAcross * k },
+    fields: L.fields.map((c) => ({ x: c.x * k, z: c.z * k, r: c.r * 1.08 })),
+  };
+}
+
 export function generateMap(id: MapId = "vale", seed = 7): GameMap {
   const info = mapInfo(id);
-  const L = info.layout;
   const w = MAP_W;
   const h = MAP_H;
+  const K = w / LAYOUT_SIZE;
+  const L = scaleLayout(info.layout, K);
   const terrain = new Uint8Array(w * h);
   const ore = new Float32Array(w * h);
   const oreMax = new Float32Array(w * h);
   const shade = new Float32Array(w * h);
   const noise = makeNoise(seed);
   const noise2 = makeNoise(seed + 11);
-  const rnd = mulberry32(seed + 3);
 
-  const playerStart = { x: 8, z: 51 };
-  const aiStart = { x: 51, z: 8 };
+  // bases nos cantos opostos: 30% mais distantes que no mapa antigo
+  const playerStart = { x: Math.round(8 * K), z: Math.round(51 * K) };
+  const aiStart = { x: playerStart.z, z: playerStart.x };
 
   const distSeg = (px: number, pz: number, r: Seg) => {
     const dx = r.x1 - r.x0;
@@ -248,7 +273,7 @@ export function generateMap(id: MapId = "vale", seed = 7): GameMap {
 
       if (L.river) {
         const rw = L.river.base + noise(along * 0.15, 3.3) * L.river.vary;
-        const nearFord = L.river.fords.some((f) => Math.abs(along - f) < 2.6);
+        const nearFord = L.river.fords.some((f) => Math.abs(along - f) < 2.9);
         if (!nearFord) liquidD = Math.min(liquidD, across - rw);
         else if (across < rw) t = Terrain.Sand;
       }
@@ -278,7 +303,8 @@ export function generateMap(id: MapId = "vale", seed = 7): GameMap {
         } else if (edge < 2) chance = 0.85;
         else if (edge < 3.2) chance = Math.max(chance, 0.35);
         if (tr.nearLiquid && liquidD < 3.5) chance = Math.max(chance, tr.nearLiquid);
-        if (t === Terrain.Grass && rnd() < chance) t = Terrain.Tree;
+        // sorteio pela posição espelhada: os dois lados ficam idênticos
+        if (t === Terrain.Grass && cellRand(sx, sz, seed) < chance) t = Terrain.Tree;
       }
 
       // Áreas livres: base, campos e caminhos perto das travessias.

@@ -36,7 +36,7 @@ Em <http://localhost:3000/jogo> há também **Force One**, um jogo de **estraté
 
 - **Economia**: Usinas geram energia; a Refinaria traz um Coletor que busca cristais dourados e os converte em créditos. Com energia baixa a produção fica lenta e torres e radar desligam.
 - **Jogo em rede (2 jogadores)**: em **Em rede → Criar sala**, o jogo mostra um código de 4 letras, um QR code e um botão para compartilhar o link. No outro aparelho, basta escanear o QR, abrir o link ou digitar o código em **Em rede → Entrar**. Quem cria escolhe o mapa e a facção; o adversário fica com a outra. Cada um vê a própria base embaixo.
-- **Mapas**: quatro paisagens, todas espelhadas para ser justo com os dois lados, com prévia na tela inicial:
+- **Mapas**: quatro paisagens de 84×84 casas (bases a ~80 casas uma da outra), todas espelhadas para ser justo com os dois lados, com prévia na tela inicial. Visual realista: chão com texturas de detalhe e relevo por tipo de solo (grama, terra, areia, rocha, neve, cinzas) misturadas com transições irregulares e chão úmido perto da água; água com ondulações animadas, reflexo do céu, cor por profundidade e espuma na margem; lava com crosta escura e gelo com reflexo; tufos de grama que balançam ao vento, arbustos secos e pedrinhas (a densidade acompanha a opção **Gráficos**):
   - **Vale Verde** — campos e bosques cortados por um rio com três vaus.
   - **Dunas de Âmbar** — deserto com mesetas e cânions, oásis com palmeiras, cactos, poeira ao vento e cristais ricos no centro.
   - **Fiorde Gelado** — tundra com mar congelado, fiordes, pinheiros nevados e neve caindo.
