@@ -219,9 +219,14 @@ export function StartScreen({ onStart, onHost, onJoin }: StartProps) {
               O Heliporto (requer Radar) produz Drones e helicópteros, que voam por cima de rios e árvores. Só Torres Antiaéreas, Fuzileiros,
               Lança-mísseis, Batedores, Javalis e Drones conseguem atingi-los — tanques, artilharia e torres terrestres não.
             </HelpCard>
+            <HelpCard title="Defesa automática">
+              Tropas atacadas revidam sozinhas e chamam as companheiras por perto. Em movimento normal, elas param para lutar e depois seguem até o
+              destino. Use "Mover" quando quiser passar sem parar para lutar.
+            </HelpCard>
             <HelpCard title="Mouse e teclado">
-              Esquerdo seleciona (arraste para área, duplo clique pega o mesmo tipo). Direito move, ataca ou coleta; ou arraste a tropa até o destino. M: mover sem lutar. Roda: zoom. Setas ou arrastar com o
-              direito: câmera. A: atacar-mover, S: parar, H: base, Ctrl+1–9: grupos, Esc: menu.
+              Esquerdo seleciona (arraste no vazio para área, duplo clique pega o mesmo tipo). Com tropas selecionadas, clique no chão para mover e
+              num inimigo para atacar, ou arraste a tropa até o destino. Esc desmarca. Roda: zoom. Setas ou arrastar com o direito: câmera. M: mover
+              sem lutar, A: atacar, S: parar, H: base, Ctrl+1–9: grupos.
             </HelpCard>
             <HelpCard title="Toque">
               Toque numa unidade para selecionar e toque no mapa para mover ou atacar, ou arraste a tropa até o destino (soltar sobre um inimigo ataca). Os botões Mover, Atacar e Parar aparecem na seleção. Arraste para mover a câmera e use pinça para zoom. O botão de

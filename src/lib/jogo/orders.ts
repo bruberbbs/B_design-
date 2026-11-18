@@ -6,7 +6,7 @@ import type { Game } from "./game";
 export type ItemKind = UnitKind | BuildingKind;
 
 export interface Orders {
-  smart(ids: number[], x: number, z: number, target: number | null, attackMove: boolean): void;
+  smart(ids: number[], x: number, z: number, target: number | null, attackMove: boolean, force?: boolean): void;
   stop(ids: number[]): void;
   queue(kind: ItemKind): boolean;
   cancel(kind: ItemKind): boolean;
@@ -34,8 +34,8 @@ export class LocalOrders implements Orders {
     return ids.filter((id) => this.game.get(id)?.team === this.team);
   }
 
-  smart(ids: number[], x: number, z: number, target: number | null, attackMove: boolean) {
-    this.game.smartCommand(this.team, this.own(ids), x, z, target, attackMove);
+  smart(ids: number[], x: number, z: number, target: number | null, attackMove: boolean, force = false) {
+    this.game.smartCommand(this.team, this.own(ids), x, z, target, attackMove, force);
   }
   stop(ids: number[]) {
     this.game.issueStop(this.own(ids).filter((id) => this.game.units.has(id)));

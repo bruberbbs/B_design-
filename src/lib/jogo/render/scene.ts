@@ -960,6 +960,11 @@ export class GameRenderer {
   }
 
   // Entidade sob o cursor/dedo.
+  // Só o que está exatamente sob o cursor/dedo (sem tolerância).
+  pickExact(px: number, py: number): number | null {
+    return this.pick(px, py, 10);
+  }
+
   pick(px: number, py: number, tolerance: number): number | null {
     const ndc = new THREE.Vector2((px / this.width) * 2 - 1, -(py / this.height) * 2 + 1);
     this.raycaster.setFromCamera(ndc, this.camera);

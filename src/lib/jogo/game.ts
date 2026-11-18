@@ -67,6 +67,8 @@ export interface Unit {
   oreTile: number;
   refId: number | null;
   idleTime: number;
+  fightBack: boolean; // revida quando atacada (falso no "Mover" forçado)
+  lastHelpCall: number;
 }
 
 export interface Building {
@@ -400,6 +402,8 @@ export class Game {
       oreTile: -1,
       refId: null,
       idleTime: 0,
+      fightBack: true,
+      lastHelpCall: -99,
     };
     this.units.set(u.id, u);
     return u;
@@ -725,7 +729,8 @@ export class Game {
     }
   }
 
-  issueMove(ids: number[], x: number, z: number, attackMove: boolean, quiet = false) {
+  // force = "Mover": vai até o destino sem parar para lutar, nem quando atacada.
+  issueMove(ids: number[], x: number, z: number, attackMove: boolean, quiet = false, force = false) {
     const units = ids.map((id) => this.units.get(id)).filter((u): u is Unit => !!u);
     if (!units.length) return;
     const slots = this.slotsAround(x, z, units);
@@ -736,6 +741,7 @@ export class Game {
       u.targetId = null;
       u.returning = false;
       u.idleTime = 0;
+      u.fightBack = !force;
       if (u.kind === "harvester") u.hState = "idle";
       this.setPath(u, s.x, s.z, true);
     }
@@ -801,7 +807,7 @@ export class Game {
   }
 
   // Comando "inteligente" do jogador: decide entre mover, atacar, coletar ou definir ponto de reunião.
-  smartCommand(team: Team, ids: number[], x: number, z: number, targetId: number | null, attackMove = false) {
+  smartCommand(team: Team, ids: number[], x: number, z: number, targetId: number | null, attackMove = false, force = false) {
     const sel = ids.map((id) => this.get(id)).filter((e): e is Entity => !!e && e.team === team);
     if (!sel.length) return;
     x = Math.max(0.5, Math.min(this.map.w - 0.5, x));
@@ -844,7 +850,7 @@ export class Game {
         );
       }
     }
-    if (others.length) this.issueMove(others.map((u) => u.id), x, z, attackMove);
+    if (others.length) this.issueMove(others.map((u) => u.id), x, z, attackMove, false, force);
   }
 
   // ---------------------------------------------------------------- dano
@@ -864,15 +870,53 @@ export class Game {
         this.msg(target.kind === "harvester" ? "Coletor sob ataque!" : "Nossa base está sob ataque!", "warn", target.team);
       }
     }
-    // retaliação
-    const tw = target.type === "unit" ? UNITS[target.kind].weapon : undefined;
-    if (target.type === "unit" && attacker && tw && canHitLayer(tw, isAir(attacker)) && target.order !== "move") {
-      const cur = this.get(target.targetId);
-      if (!cur) {
-        target.targetId = attacker.id;
-      }
-    }
+    if (target.type === "unit" && attacker && attacker.team !== target.team && target.hp > 0) this.respond(target, attacker);
     if (target.hp <= 0) this.kill(target, attacker);
+  }
+
+  // Defesa automática: a unidade atingida revida e chama as tropas paradas por perto.
+  private respond(u: Unit, attacker: Entity) {
+    const w = UNITS[u.kind].weapon;
+    if (w && u.fightBack && u.order !== "attack" && canHitLayer(w, isAir(attacker))) {
+      // só troca de alvo se o atual não for uma ameaça ao alcance
+      const cur = this.get(u.targetId);
+      const busy = cur && cur.type === "unit" && cur.hp > 0 && this.distTo(u.x, u.z, cur) <= w.range;
+      if (!busy) this.engage(u, attacker);
+    }
+    if (this.time - u.lastHelpCall < 1) return;
+    u.lastHelpCall = this.time;
+    for (const a of this.units.values()) {
+      // ajudam as paradas e as que estão em movimento normal (não as em "Mover" forçado)
+      if (a.team !== u.team || a === u || !a.fightBack) continue;
+      if (a.order !== "idle" && a.order !== "move" && !(a.order === "attackMove" && !this.get(a.targetId))) continue;
+      const aw = UNITS[a.kind].weapon;
+      if (!aw || !canHitLayer(aw, isAir(attacker))) continue;
+      if (Math.hypot(a.x - u.x, a.z - u.z) > 5.5) continue;
+      if (this.get(a.targetId)) continue;
+      this.engage(a, attacker);
+    }
+  }
+
+  private engage(u: Unit, attacker: Entity) {
+    const w = UNITS[u.kind].weapon;
+    if (!w) return;
+    const d = this.distTo(u.x, u.z, attacker);
+    // em movimento normal: luta e depois retoma o caminho até o destino
+    if (u.order === "move") u.order = "attackMove";
+    if (d <= w.range) {
+      u.targetId = attacker.id;
+      return;
+    }
+    // atacante fora do alcance: vai até ele, se não estiver longe demais (ex.: artilharia distante)
+    if (d > UNITS[u.kind].sight + 4) return;
+    const c = this.center(attacker);
+    if (u.order === "idle") {
+      u.order = "attackMove";
+      u.goal = { x: c.x, z: c.z };
+      u.returning = false;
+      this.setPath(u, c.x, c.z, true);
+    }
+    u.targetId = attacker.id;
   }
 
   private kill(e: Entity, attacker: Entity | undefined) {
@@ -1207,6 +1251,7 @@ export class Game {
       const arrived = this.moveAlong(u, dt);
       if (arrived && (u.order === "move" || u.order === "attackMove")) {
         u.order = "idle";
+        u.fightBack = true; // chegou: volta a se defender
         u.guardX = u.x;
         u.guardZ = u.z;
       }

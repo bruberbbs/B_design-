@@ -268,9 +268,22 @@ export class InputController {
     const tid = mode.forceMove ? null : id;
     const target = this.game.get(tid);
     const attack = !!target && target.team !== 0;
-    this.orders.smart([...this.game.selected], w.x, w.z, tid, mode.attackMove);
+    this.orders.smart([...this.game.selected], w.x, w.z, tid, mode.attackMove, mode.forceMove);
     this.r.ping(target ? this.game.center(target).x : w.x, target ? this.game.center(target).z : w.z, attack || mode.attackMove);
     if (mode.attackMove || mode.forceMove) this.hooks.setMode({ attackMove: false, forceMove: false });
+  }
+
+  // Com tropas selecionadas, uma unidade própria só "pega" o clique se estiver exatamente
+  // sob o cursor/dedo; perto dela, o clique vale como ordem de movimento.
+  private resolvePick(px: number, py: number, tolerance: number) {
+    const id = this.r.pick(px, py, tolerance);
+    const e = this.game.get(id);
+    if (e && e.team === 0 && this.hasUnitsSelected() && this.r.pickExact(px, py) !== id) return null;
+    return id;
+  }
+
+  private hasUnitsSelected() {
+    return this.selectedOwn().some((s) => s.type === "unit");
   }
 
   private selectOnly(id: number) {
@@ -297,7 +310,7 @@ export class InputController {
       if (t) this.tryPlace(t.tx, t.tz);
       return;
     }
-    const id = this.r.pick(px, py, 14);
+    const id = this.resolvePick(px, py, 14);
     if ((mode.attackMove || mode.forceMove) && this.canCommand()) {
       this.command(px, py, id);
       return;
@@ -305,6 +318,12 @@ export class InputController {
     const now = performance.now();
     const dbl = id !== null && this.lastTap.id === id && now - this.lastTap.t < 350;
     this.lastTap = { t: now, id: id ?? -1 };
+    const enemy = this.game.get(id);
+    // com tropas selecionadas: clique num inimigo ataca, clique no chão move
+    if (!shift && this.hasUnitsSelected() && (!enemy || enemy.team !== 0)) {
+      this.command(px, py, id);
+      return;
+    }
     if (id !== null) {
       const e = this.game.get(id)!;
       if (dbl && e.team === 0) this.selectSameType(id);
@@ -342,7 +361,7 @@ export class InputController {
       else this.touchGhost = t;
       return;
     }
-    const id = this.r.pick(px, py, 26);
+    const id = this.resolvePick(px, py, 26);
     const e = this.game.get(id);
     const now = performance.now();
     const dbl = id !== null && this.lastTap.id === id && now - this.lastTap.t < 400;

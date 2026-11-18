@@ -517,8 +517,7 @@ export function GameView({ difficulty, faction, mapId, net, onRestart, onMenu }:
             <SelectionPanel sel={hud.selection} thumbs={thumbs} {...actions} />
           </div>
           <p className="text-[10px] leading-relaxed text-white/35">
-            Esquerdo: selecionar · Direito: mover/atacar · Arraste: seleção em área · Roda: zoom · Setas ou arrastar com o direito: câmera · Arraste a tropa: ordem · M: mover · A: atacar · S: parar · Ctrl+1–9: grupos
-          </p>
+            Esquerdo: seleciona; com tropas selecionadas, clicar no chão move e num inimigo ataca · Arraste no vazio: seleção em área · Esc: desmarcar · Roda: zoom · Setas ou arrastar com o direito: câmera · M: mover sem lutar · A: atacar · S: parar · Ctrl+1–9: grupos</p>
         </aside>
       )}
 

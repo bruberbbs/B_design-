@@ -32,7 +32,7 @@ export interface Hello {
 }
 
 type Cmd =
-  | { c: "smart"; ids: number[]; x: number; z: number; target: number | null; am: boolean }
+  | { c: "smart"; ids: number[]; x: number; z: number; target: number | null; am: boolean; fm?: boolean }
   | { c: "stop"; ids: number[] }
   | { c: "queue"; k: ItemKind }
   | { c: "cancel"; k: ItemKind }
@@ -118,7 +118,7 @@ export class HostLink {
     const o = this.remote;
     switch (c.c) {
       case "smart":
-        o.smart(c.ids, c.z, c.x, c.target, c.am);
+        o.smart(c.ids, c.z, c.x, c.target, c.am, !!c.fm);
         break;
       case "stop":
         o.stop(c.ids);
@@ -297,7 +297,7 @@ export class GuestLink {
     const send = (cmd: Cmd) => room.send({ t: "cmd", cmd });
     const g = game;
     this.orders = {
-      smart: (ids, x, z, target, am) => send({ c: "smart", ids: ids.filter((id) => g.get(id)?.team === 0), x: r2(x), z: r2(z), target, am }),
+      smart: (ids, x, z, target, am, fm) => send({ c: "smart", ids: ids.filter((id) => g.get(id)?.team === 0), x: r2(x), z: r2(z), target, am, fm: !!fm }),
       stop: (ids) => send({ c: "stop", ids }),
       queue: (k) => {
         if (!g.canProduce(0, k)) return false;

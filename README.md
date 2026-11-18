@@ -61,8 +61,9 @@ Em <http://localhost:3000/jogo> há também **Force One**, um jogo de **estraté
 - **Névoa de guerra**, explosões, fumaça, marcas de queimado e sons sintetizados.
 - **Trilha sonora adaptativa**, composta e sintetizada em tempo real (sem arquivos de áudio): um tema por facção — Aurora em ré maior, luminoso, a 104 BPM; Legião em dó menor, sombrio, a 92 BPM, com baixo distorcido — que passa de calmo para tensão (inimigos à vista) e batalha (combate ou base sob ataque), com vinhetas de vitória e derrota. Música e efeitos podem ser ligados e desligados separadamente no menu, e a escolha fica salva no navegador.
 - **Visual de soldadinhos de brinquedo**: tropas de plástico brilhante na cor do time, com pernas que andam, luz clara de dia e sombras suaves, pátios de concreto sob as construções e sacos de areia nas defesas.
-- **Comandos das tropas**: selecione e use **Mover** (vai direto ao destino, sem parar para lutar), **Atacar** (ataca o alvo tocado ou avança lutando) e **Parar**, ou simplesmente **arraste a tropa até o destino** — soltar sobre um inimigo ataca. Setas no chão mostram para onde cada grupo vai (verde = mover, vermelho = atacar).
-- **Controles**: mouse e teclado (esquerdo seleciona, direito comanda, M mover, A atacar, S parar, Ctrl+1–9 grupos) ou toque (toque comanda, arrastar a tropa dá a ordem, arrastar o mapa move a câmera, pinça dá zoom).
+- **Comandos das tropas**: selecione e **clique/toque no mapa** para mover até o ponto escolhido, ou num inimigo para atacar. Também dá para **arrastar a tropa até o destino** (soltar sobre um inimigo ataca) e usar os botões **Mover** (vai direto, sem parar para lutar), **Atacar** e **Parar**. Setas no chão mostram para onde cada grupo vai (verde = mover, vermelho = atacar).
+- **Defesa automática**: tropas atacadas revidam sozinhas e chamam as companheiras por perto; em movimento normal, param para lutar e depois seguem até o destino. Só o "Mover" passa direto.
+- **Controles**: mouse e teclado (esquerdo seleciona e, com tropas selecionadas, move/ataca; direito também comanda; Esc desmarca; M mover, A atacar, S parar, Ctrl+1–9 grupos) ou toque (toque comanda, arrastar a tropa dá a ordem, arrastar o mapa move a câmera, pinça dá zoom).
 
 ![Helicópteros e drones sob fogo antiaéreo](docs/screenshots/jogo-aereo.png)
 
