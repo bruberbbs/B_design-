@@ -5,7 +5,7 @@ import { Flag, Map as MapIcon, Menu, Pause, Shield, Wifi, WifiOff } from "lucide
 import { AIController } from "@/lib/jogo/ai";
 import { audioContext, loadAudioPrefs, saveAudioPrefs, Sfx } from "@/lib/jogo/audio";
 import { Music, MusicDirector } from "@/lib/jogo/music";
-import { BUILDINGS, FACTIONS, OTHER_FACTION, type Difficulty, type Faction, type Producer } from "@/lib/jogo/defs";
+import { BUILDINGS, FACTIONS, nameFor, OTHER_FACTION, type Difficulty, type Faction, type Producer } from "@/lib/jogo/defs";
 import { Game } from "@/lib/jogo/game";
 import { drawMinimap, minimapToWorld, snapshot, type HudSnapshot, type ItemKind } from "@/lib/jogo/hud";
 import { InputController, type InputMode } from "@/lib/jogo/input";
@@ -364,7 +364,7 @@ export function GameView({ difficulty, faction, mapId, net, onRestart, onMenu }:
   }
 
   const items = hud?.items[tab] ?? [];
-  const placingName = mode.placing ? BUILDINGS[mode.placing].name : "";
+  const placingName = mode.placing ? nameFor(mode.placing, faction) : "";
 
   return (
     <div ref={rootRef} className="fixed inset-0 flex select-none flex-col overflow-hidden bg-[#0a0e18] text-white lg:flex-row">

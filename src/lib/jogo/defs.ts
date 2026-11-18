@@ -65,6 +65,7 @@ export interface UnitDef {
   infantry: boolean;
   air?: boolean;
   faction?: Faction; // ausente = disponível para as duas facções
+  names?: Partial<Record<Faction, string>>; // nome próprio de cada facção (guia de identidade)
   producer: Producer;
   requires: BuildingKind[];
   weapon?: Weapon;
@@ -86,12 +87,14 @@ export interface BuildingDef {
   weapon?: Weapon;
   buildable: boolean;
   faction?: Faction;
+  names?: Partial<Record<Faction, string>>;
 }
 
 export const UNITS: Record<UnitKind, UnitDef> = {
   rifle: {
     kind: "rifle",
     name: "Fuzileiro",
+    names: { aurora: "Guarda Polar", escarlate: "Brigada Brasa" },
     short: "Fuzileiro",
     desc: "Infantaria barata. Forte contra infantaria.",
     cost: 100,
@@ -110,6 +113,7 @@ export const UNITS: Record<UnitKind, UnitDef> = {
   rocket: {
     kind: "rocket",
     name: "Lança-mísseis",
+    names: { aurora: "Observador", escarlate: "Mira Rubra" },
     short: "Mísseis",
     desc: "Infantaria antiblindagem de longo alcance.",
     cost: 300,
@@ -129,6 +133,7 @@ export const UNITS: Record<UnitKind, UnitDef> = {
     kind: "scout",
     faction: "aurora",
     name: "Batedor",
+    names: { aurora: "Falcão-1" },
     short: "Batedor",
     desc: "Veículo rápido de reconhecimento com metralhadora.",
     cost: 500,
@@ -148,6 +153,7 @@ export const UNITS: Record<UnitKind, UnitDef> = {
     kind: "tank",
     faction: "aurora",
     name: "Tanque Vespa",
+    names: { aurora: "Bastião" },
     short: "Vespa",
     desc: "Tanque leve versátil. Bom contra veículos.",
     cost: 700,
@@ -166,9 +172,10 @@ export const UNITS: Record<UnitKind, UnitDef> = {
   heavy: {
     kind: "heavy",
     faction: "escarlate",
-    name: "Tanque Titã",
+    name: "Tanque Colosso",
+    names: { escarlate: "Colosso" },
     short: "Titã",
-    desc: "Tanque principal da Meridian: canhão duplo, lento e muito resistente.",
+    desc: "Tanque pesado: canhão duplo, lento e muito resistente.",
     cost: 1350,
     buildTime: 17,
     hp: 650,
@@ -224,6 +231,7 @@ export const UNITS: Record<UnitKind, UnitDef> = {
     kind: "javali",
     faction: "escarlate",
     name: "Blindado Javali",
+    names: { escarlate: "Chacal-7" },
     short: "Javali",
     desc: "Blindado de 6 rodas com metralhadora dupla. Atinge aeronaves.",
     cost: 550,
@@ -262,6 +270,7 @@ export const UNITS: Record<UnitKind, UnitDef> = {
     kind: "tempest",
     faction: "escarlate",
     name: "Lança-foguetes Tempestade",
+    names: { escarlate: "Míssil Cometa" },
     short: "Tempestade",
     desc: "Caminhão que dispara salvas de 4 foguetes a longa distância.",
     cost: 1000,
@@ -280,6 +289,7 @@ export const UNITS: Record<UnitKind, UnitDef> = {
   harvester: {
     kind: "harvester",
     name: "Coletor",
+    names: { aurora: "Ceifeiro Zênite", escarlate: "Extrator Meridian" },
     short: "Coletor",
     desc: "Coleta cristais e leva até a refinaria.",
     cost: 1400,
@@ -297,6 +307,7 @@ export const UNITS: Record<UnitKind, UnitDef> = {
   drone: {
     kind: "drone",
     name: "Drone Vigia",
+    names: { aurora: "Drone Halo" },
     short: "Drone",
     desc: "Aeronave rápida de reconhecimento. Enxerga longe e atira em tudo.",
     cost: 600,
@@ -357,6 +368,7 @@ export const UNITS: Record<UnitKind, UnitDef> = {
   exo: {
     kind: "exo",
     name: "Exo-soldado",
+    names: { aurora: "Sentinela Aegis", escarlate: "Demolidor Ígneo" },
     short: "Exo",
     desc: "Infantaria de elite em exoesqueleto blindado, com metralhadora pesada. Atinge aeronaves.",
     cost: 650,
@@ -374,8 +386,8 @@ export const UNITS: Record<UnitKind, UnitDef> = {
   },
   colosso: {
     kind: "colosso",
-    name: "Tanque Colosso",
-    short: "Colosso",
+    name: "Supertanque Titã",
+    short: "Titã",
     desc: "Supertanque com canhões duplos e blindagem reforçada. Lento, mas quase indestrutível.",
     cost: 2300,
     buildTime: 24,
@@ -415,6 +427,7 @@ export const BUILDINGS: Record<BuildingKind, BuildingDef> = {
   hq: {
     kind: "hq",
     name: "Centro de Comando",
+    names: { aurora: "Cidadela Apex", escarlate: "Fortaleza Solstício" },
     desc: "Coração da base. Constrói todas as estruturas.",
     cost: 3000,
     buildTime: 30,
@@ -443,7 +456,7 @@ export const BUILDINGS: Record<BuildingKind, BuildingDef> = {
   refinery: {
     kind: "refinery",
     name: "Refinaria",
-    desc: "Processa cristais em créditos. Vem com um Coletor.",
+    desc: "Processa cristais em créditos. Vem com um coletor.",
     cost: 1400,
     buildTime: 14,
     hp: 950,
@@ -457,6 +470,7 @@ export const BUILDINGS: Record<BuildingKind, BuildingDef> = {
   barracks: {
     kind: "barracks",
     name: "Quartel",
+    names: { aurora: "Centro de Comando Horizonte", escarlate: "Posto Avançado Canícula" },
     desc: "Treina infantaria.",
     cost: 400,
     buildTime: 7,
@@ -500,6 +514,7 @@ export const BUILDINGS: Record<BuildingKind, BuildingDef> = {
     kind: "turret",
     faction: "aurora",
     name: "Torre de Defesa",
+    names: { aurora: "Farol" },
     desc: "Canhão fixo que defende a base. Precisa de energia.",
     cost: 600,
     buildTime: 8,
@@ -516,6 +531,7 @@ export const BUILDINGS: Record<BuildingKind, BuildingDef> = {
     kind: "inferno",
     faction: "escarlate",
     name: "Torre Inferno",
+    names: { escarlate: "Forja" },
     desc: "Lança-chamas fixo de curto alcance. Devasta infantaria. Precisa de energia.",
     cost: 550,
     buildTime: 8,
@@ -560,7 +576,7 @@ export const BUILDINGS: Record<BuildingKind, BuildingDef> = {
   techcenter: {
     kind: "techcenter",
     name: "Centro de Tecnologia",
-    desc: "Laboratório avançado. Libera o Exo-soldado, o Tanque Colosso e o Caça Relâmpago.",
+    desc: "Laboratório avançado. Libera a infantaria pesada, o Supertanque Titã e o Caça Relâmpago.",
     cost: 2500,
     buildTime: 22,
     hp: 900,
@@ -579,7 +595,7 @@ export const BUILD_ORDER_INFANTRY: UnitKind[] = ["rifle", "rocket", "flamer", "e
 export const BUILD_ORDER_VEHICLES: UnitKind[] = ["harvester", "scout", "javali", "tank", "heavy", "artillery", "tempest", "lumen", "colosso"];
 export const BUILD_ORDER_AIR: UnitKind[] = ["drone", "heli", "tufao", "caca"];
 
-// Pré-requisito "turret" vale para a torre de defesa da facção (Torre de Defesa ou Torre Inferno).
+// Pré-requisito "turret" vale para a torre de defesa da facção (Farol ou Forja).
 export const DEFENSE_TOWERS: BuildingKind[] = ["turret", "inferno"];
 
 // Construção que produz cada categoria.
@@ -635,7 +651,7 @@ export const FACTIONS: Record<Faction, FactionInfo> = {
     structure: "#a3a48e",
     emblem: "zenite",
     motto: "“Acima de tudo, vigilância.” Disciplina, tecnologia e controle.",
-    traits: ["Tanque Vespa ágil e Batedor rápido", "Tanque Lumen com feixe de laser", "Morteiro de longo alcance", "Helicóptero Colibri antiblindagem"],
+    traits: ["Bastião ágil e Falcão-1 rápido", "Tanque Lumen com feixe de laser", "Morteiro de longo alcance", "Helicóptero Colibri antiblindagem"],
   },
   escarlate: {
     name: "Aliança Meridian",
@@ -647,7 +663,7 @@ export const FACTIONS: Record<Faction, FactionInfo> = {
     structure: "#c4b08c",
     emblem: "meridian",
     motto: "“Ao meio-dia, não há sombra.” Força bruta, velocidade e pressão.",
-    traits: ["Tanque Titã já de início", "Lança-chamas e Torre Inferno", "Salvas do Lança-foguetes Tempestade", "Helicóptero Tufão anti-infantaria"],
+    traits: ["Tanque Colosso já de início", "Lança-chamas e torre Forja", "Salvas do Míssil Cometa", "Helicóptero Tufão anti-infantaria"],
   },
 };
 
@@ -670,3 +686,9 @@ export const DIFFICULTY: Record<Difficulty, { label: string; income: number; fir
   normal: { label: "Normal", income: 1, firstAttack: 240, waveEvery: 130, waveSize: 6, buildSpeed: 1 },
   hard: { label: "Difícil", income: 1.4, firstAttack: 170, waveEvery: 95, waveSize: 8, buildSpeed: 1.25 },
 };
+
+// Nome exibido de uma unidade ou construção para a facção (nomes do guia de identidade).
+export function nameFor(kind: UnitKind | BuildingKind, faction: Faction): string {
+  const d = kind in UNITS ? UNITS[kind as UnitKind] : BUILDINGS[kind as BuildingKind];
+  return d.names?.[faction] ?? d.name;
+}

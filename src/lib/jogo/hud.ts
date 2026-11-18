@@ -103,7 +103,7 @@ export function snapshot(g: Game): HudSnapshot {
       const cost = def.cost;
       return {
         kind,
-        name: def.name,
+        name: g.nameOf(0, kind),
         cost,
         available: g.canProduce(0, kind),
         requires: reqs.map((r) => g.reqName(0, r)).join(", "),
@@ -125,7 +125,7 @@ export function snapshot(g: Game): HudSnapshot {
         id: e.id,
         entity: "unit",
         kind: e.kind,
-        name: UNITS[e.kind].name,
+        name: g.nameOf(e.team, e.kind),
         own: e.team === 0,
         hp: Math.ceil(e.hp),
         maxHp: e.maxHp,
@@ -164,7 +164,7 @@ export function snapshot(g: Game): HudSnapshot {
         id: e.id,
         entity: "building",
         kind: e.kind,
-        name: BUILDINGS[e.kind].name,
+        name: g.nameOf(e.team, e.kind),
         own: e.team === 0,
         hp: Math.ceil(e.hp),
         maxHp: e.maxHp,

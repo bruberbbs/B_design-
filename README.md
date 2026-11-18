@@ -34,7 +34,7 @@ Em <http://localhost:3000/jogo> há também **Force One**, um jogo de **estraté
 
 ![Base do jogador em Force One](docs/screenshots/jogo-base.png)
 
-- **Economia**: Usinas geram energia; a Refinaria traz um Coletor que busca cristais dourados e os converte em créditos. Com energia baixa a produção fica lenta e torres e radar desligam.
+- **Economia**: Usinas geram energia; a Refinaria traz um coletor (Ceifeiro Zênite / Extrator Meridian) que busca cristais dourados e os converte em créditos. Com energia baixa a produção fica lenta e torres e radar desligam.
 - **Jogo em rede (2 jogadores)**: em **Em rede → Criar sala**, o jogo mostra um código de 4 letras, um QR code e um botão para compartilhar o link. No outro aparelho, basta escanear o QR, abrir o link ou digitar o código em **Em rede → Entrar**. Quem cria escolhe o mapa e a facção; o adversário fica com a outra. Cada um vê a própria base embaixo.
 - **Mapas**: quatro paisagens de 84×84 casas (bases a ~80 casas uma da outra), todas espelhadas para ser justo com os dois lados, com prévia na tela inicial. Visual realista: chão com texturas de detalhe e relevo por tipo de solo (grama, terra, areia, rocha, neve, cinzas) misturadas com transições irregulares e chão úmido perto da água; água com ondulações animadas, reflexo do céu, cor por profundidade e espuma na margem; lava com crosta escura e gelo com reflexo; tufos de grama que balançam ao vento, arbustos secos e pedrinhas (a densidade acompanha a opção **Gráficos**):
   - **Vale Verde** — campos e bosques cortados por um rio com três vaus.
@@ -47,16 +47,25 @@ Em <http://localhost:3000/jogo> há também **Force One**, um jogo de **estraté
   | ![Deserto](docs/screenshots/jogo-mapa-dunas.png) | ![Tundra](docs/screenshots/jogo-mapa-fiorde.png) | ![Vulcão](docs/screenshots/jogo-mapa-caldeira.png) |
 - **Facções**:
 
+  Nomes do guia de identidade (o papel de cada unidade é o mesmo nas duas facções quando a linha é comum):
+
   | | Coalizão Zênite — “Acima de tudo, vigilância.” | Aliança Meridian — “Ao meio-dia, não há sombra.” |
   | --- | --- | --- |
-  | Infantaria | — | Lança-chamas |
-  | Veículos | Batedor, Tanque Vespa, Morteiro Móvel, Tanque Lumen (laser) | Blindado Javali, Tanque Titã, Lança-foguetes Tempestade |
-  | Aéreo | Helicóptero Colibri (mísseis antiblindagem) | Helicóptero Tufão (metralhadora rotativa) |
-  | Defesa | Torre de Defesa (canhão) | Torre Inferno (lança-chamas) |
+  | Base principal | Cidadela Apex | Fortaleza Solstício |
+  | Quartel | Centro de Comando Horizonte | Posto Avançado Canícula |
+  | Coletor | Ceifeiro Zênite | Extrator Meridian |
+  | Infantaria | Guarda Polar | Brigada Brasa |
+  | Atirador (antiblindagem) | Observador | Mira Rubra |
+  | Infantaria pesada (Centro de Tecnologia) | Sentinela Aegis | Demolidor Ígneo |
+  | Veículo leve | Falcão-1 | Chacal-7 |
+  | Veículo pesado | Bastião | Colosso |
+  | Unidade especial | Drone Halo | Míssil Cometa (lança-foguetes) |
+  | Torre de defesa | Farol (canhão) | Forja (lança-chamas) |
+  | Exclusivas | Morteiro Móvel, Tanque Lumen (laser), Helicóptero Colibri | Lança-chamas, Helicóptero Tufão |
 
-  Comuns às duas: Centro de Comando, Usina, Refinaria, Quartel, Fábrica de Blindados, Radar (liga o minimapa), Heliporto, Torre Antiaérea, Coletor, Fuzileiro, Lança-mísseis e Drone Vigia.
+  Comuns às duas: Usina, Refinaria, Fábrica de Blindados, Radar (liga o minimapa), Heliporto, Torre Antiaérea, Centro de Tecnologia, Supertanque Titã, Caça Relâmpago e o drone (Drone Halo na Zênite, Drone Vigia na Meridian).
 - **Combate**: tipos de arma (bala, canhão, míssil, artilharia, laser, chamas e antiaérea) contra tipos de blindagem. Dá para reparar, vender e escolher a fábrica principal.
-- **Aeronaves**: voam em linha reta por cima de rios, rochas e árvores. Só armas antiaéreas as atingem: Torre Antiaérea, Fuzileiro, Lança-mísseis, Batedor, Javali e Drone; tanques, artilharia e torres terrestres não.
+- **Aeronaves**: voam em linha reta por cima de rios, rochas e árvores. Só armas antiaéreas as atingem: Torre Antiaérea, infantaria, atiradores, Falcão-1, Chacal-7, drones, infantaria pesada e Caça Relâmpago; tanques, artilharia e torres terrestres não.
 - **IA** em três dificuldades: ergue a base, mantém coletores, defende e ataca em ondas.
 - **Névoa de guerra**, explosões, fumaça, marcas de queimado e sons sintetizados.
 - **Trilha sonora adaptativa**, composta e sintetizada em tempo real (sem arquivos de áudio): um tema por facção — Zênite em ré maior, luminoso, a 104 BPM; Meridian em dó menor, sombrio, a 92 BPM, com baixo distorcido — que passa de calmo para tensão (inimigos à vista) e batalha (combate ou base sob ataque), com vinhetas de vitória e derrota. Música e efeitos podem ser ligados e desligados separadamente no menu, e a escolha fica salva no navegador.
@@ -65,7 +74,7 @@ Em <http://localhost:3000/jogo> há também **Force One**, um jogo de **estraté
 - **Gráficos**: iluminação de ambiente com reflexos nos metais, oclusão de ambiente, brilho em fogo e explosões, antisserrilhado, sombras em alta resolução e luzes nas explosões. Veículos destruídos viram carcaças queimadas que fumegam, soldados caem e construções deixam ruínas. No menu, **Gráficos: Máxima, Equilibrada ou Leve** (padrão: máxima no computador e equilibrada no celular).
 - **Comandos das tropas**: selecione e **clique/toque no mapa** para mover até o ponto escolhido, ou num inimigo para atacar. Também dá para **arrastar a tropa até o destino** (soltar sobre um inimigo ataca) e usar os botões **Mover** (vai direto, sem parar para lutar), **Atacar** e **Parar**. Setas no chão mostram para onde cada grupo vai (verde = mover, vermelho = atacar).
 - **Defesas**: torres e antiaéreas atiram sozinhas em quem entra no alcance; com energia baixa continuam funcionando, mas giram e recarregam pela metade da velocidade.
-- **Centro de Tecnologia**: liberado depois de erguer todas as estruturas da base. Pronto, libera para as duas facções o **Exo-soldado** (infantaria de elite blindada, atinge aeronaves), o **Tanque Colosso** (supertanque de canhões duplos) e o **Caça Relâmpago** (jato rápido com mísseis, ar e solo).
+- **Centro de Tecnologia**: liberado depois de erguer todas as estruturas da base. Pronto, libera a **infantaria pesada** (Sentinela Aegis / Demolidor Ígneo: elite blindada, atinge aeronaves), o **Supertanque Titã** (canhões duplos) e o **Caça Relâmpago** (jato rápido com mísseis, ar e solo).
 - **Proteger área**: com só infantaria selecionada, o botão **Mover** vira **Proteger** (atalho **G**). Escolhida a área, as tropas vão até lá, atacam quem entrar no círculo de proteção (raio de 6 casas), perseguem só até perto do limite e voltam ao posto. Ficam de guarda até receberem outra ordem.
 - **Ponto de desembarque**: selecione o Quartel, a Fábrica ou o Heliporto, toque em **Ponto de desembarque** (atalho **D**) e depois no mapa. As tropas novas saem e vão até a bandeira. **Cada prédio tem o seu ponto**: com dois quartéis (ou fábricas/heliportos), eles se revezam na produção e cada um manda as tropas para a própria bandeira; marcando um como **Principal**, tudo sai só dele. O ponto pode ser removido no mesmo painel.
 - **Defesa automática**: tropas atacadas revidam sozinhas e chamam as companheiras por perto; em movimento normal, param para lutar e depois seguem até o destino. Só o "Mover" passa direto.

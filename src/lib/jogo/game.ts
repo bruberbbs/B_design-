@@ -11,6 +11,7 @@ import {
   FACTIONS,
   HARVEST_CAPACITY,
   HARVEST_SCOOP,
+  nameFor,
   isRallyKind,
   OTHER_FACTION,
   PLACE_RADIUS,
@@ -348,13 +349,18 @@ export class Game {
     return this.hasBuilding(team, r);
   }
 
-  // Nome do pré-requisito como o time o conhece (a Meridian usa a Torre Inferno).
+  // Nome do pré-requisito como o time o conhece (a Meridian usa a Forja).
   reqName(team: Team, r: BuildingKind) {
     if (r === "turret") {
       const k = DEFENSE_TOWERS.find((t) => this.inRoster(team, t)) ?? "turret";
-      return BUILDINGS[k].name;
+      return this.nameOf(team, k);
     }
-    return BUILDINGS[r].name;
+    return this.nameOf(team, r);
+  }
+
+  // Nome de unidade/construção na facção do time.
+  nameOf(team: Team, kind: UnitKind | BuildingKind) {
+    return nameFor(kind, this.factions[team]);
   }
 
   canProduce(team: Team, kind: UnitKind | BuildingKind) {
@@ -950,7 +956,7 @@ export class Game {
       const base = target.type === "building" || target.kind === "harvester";
       if (base) {
         ts.lastAttackAlert = this.time;
-        this.msg(target.kind === "harvester" ? "Coletor sob ataque!" : "Nossa base está sob ataque!", "warn", target.team);
+        this.msg(target.kind === "harvester" ? `${this.nameOf(target.team, "harvester")} sob ataque!` : "Nossa base está sob ataque!", "warn", target.team);
       }
     }
     if (target.type === "unit" && attacker && attacker.team !== target.team && target.hp > 0) this.respond(target, attacker);
@@ -1022,8 +1028,8 @@ export class Game {
       this.removeBuilding(e);
       this.events.push({ type: "buildingDeath", x: e.tx + e.w / 2, z: e.tz + e.h / 2, w: e.w, h: e.h });
       this.updatePower();
-      this.msg(`${BUILDINGS[e.kind].name} destruído`, "warn", e.team);
-      this.msg(`Estrutura inimiga destruída: ${BUILDINGS[e.kind].name}`, "good", e.team === 0 ? 1 : 0);
+      this.msg(`${this.nameOf(e.team, e.kind)} destruído`, "warn", e.team);
+      this.msg(`Estrutura inimiga destruída: ${this.nameOf(e.team, e.kind)}`, "good", e.team === 0 ? 1 : 0);
     }
   }
 
@@ -1663,7 +1669,7 @@ export class Game {
       for (const u of this.units.values()) {
         if (u.team !== viewer && UNITS[u.kind].air && this.teams[viewer].visible[this.tileIndex(u.x, u.z)]) {
           this.airAlerted[viewer] = true;
-          this.msg("Aeronaves inimigas avistadas! Torres Antiaéreas e Lança-mísseis as derrubam.", "warn", viewer);
+          this.msg(`Aeronaves inimigas avistadas! Torres Antiaéreas e ${this.nameOf(viewer, "rocket")} as derrubam.`, "warn", viewer);
           break;
         }
       }

@@ -210,17 +210,18 @@ export function StartScreen({ onStart, onHost, onJoin }: StartProps) {
               Destrua todas as construções inimigas. Se você perder todas as suas, a batalha acaba.
             </HelpCard>
             <HelpCard title="Economia">
-              Usinas geram energia. A Refinaria traz um Coletor que busca cristais dourados e os transforma em créditos. Energia baixa deixa produção e
-              defesas mais lentas e desliga o radar.
+              Usinas geram energia. A Refinaria traz um coletor (Ceifeiro Zênite ou Extrator Meridian) que busca cristais dourados e os transforma em
+              créditos. Energia baixa deixa produção e defesas mais lentas e desliga o radar.
             </HelpCard>
             <HelpCard title="Facções">
-              A Coalizão Zênite aposta em precisão e defesa (Vespa, Lumen, Morteiro, Colibri, Torre de Defesa). A Aliança Meridian aposta em
-              blindagem e fogo (Titã, Javali, Tempestade, Lança-chamas, Tufão, Torre Inferno). Construções básicas, Coletor, Fuzileiro, Lança-mísseis,
-              Drone e Torre Antiaérea são comuns às duas.
+              A Coalizão Zênite (base: Cidadela Apex) aposta em precisão e defesa: Falcão-1, Bastião, Lumen, Morteiro, Colibri e a torre Farol. A
+              Aliança Meridian (base: Fortaleza Solstício) aposta em força e pressão: Chacal-7, Colosso, Míssil Cometa, Lança-chamas, Tufão e a torre
+              Forja. Cada uma tem seu quartel (Centro de Comando Horizonte / Posto Avançado Canícula), sua infantaria (Guarda Polar / Brigada Brasa)
+              e seus atiradores (Observador / Mira Rubra); usina, refinaria, fábrica, radar, heliporto e antiaérea são comuns.
             </HelpCard>
             <HelpCard title="Aeronaves">
-              O Heliporto (requer Radar) produz Drones e helicópteros, que voam por cima de rios e árvores. Só Torres Antiaéreas, Fuzileiros,
-              Lança-mísseis, Batedores, Javalis e Drones conseguem atingi-los — tanques, artilharia e torres terrestres não.
+              O Heliporto (requer Radar) produz drones e helicópteros, que voam por cima de rios e árvores. Só Torres Antiaéreas, infantaria,
+              atiradores, Falcão-1, Chacal-7, drones e o Caça Relâmpago conseguem atingi-los — tanques, artilharia e torres terrestres não.
             </HelpCard>
             <HelpCard title="Defesa automática">
               Tropas atacadas revidam sozinhas e chamam as companheiras por perto. Em movimento normal, elas param para lutar e depois seguem até o
@@ -228,8 +229,8 @@ export function StartScreen({ onStart, onHost, onJoin }: StartProps) {
             </HelpCard>
             <HelpCard title="Centro de Tecnologia">
               Depois de erguer todas as estruturas da base (Usina, Refinaria, Quartel, Fábrica, Radar, torre de defesa, Heliporto e Torre
-              Antiaérea), libera-se o Centro de Tecnologia. Pronto, ele permite treinar o Exo-soldado (infantaria de elite), o Tanque Colosso
-              (supertanque de canhões duplos) e o Caça Relâmpago (avião a jato que derruba aeronaves e ataca blindados).
+              Antiaérea), libera-se o Centro de Tecnologia. Pronto, ele permite treinar a infantaria pesada (Sentinela Aegis ou Demolidor
+              Ígneo), o Supertanque Titã (canhões duplos) e o Caça Relâmpago (jato que derruba aeronaves e ataca blindados).
             </HelpCard>
             <HelpCard title="Proteger área">
               Com só infantaria selecionada, o botão “Mover” vira “Proteger” (atalho: G). Toque nele e depois numa área do mapa: as tropas vão
