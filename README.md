@@ -26,6 +26,23 @@ Ferramenta web para **estudo de viabilidade de lotes** em um mapa 3D: clique em 
 | --- | --- |
 | ![Análise solar com sombras](docs/screenshots/analise-solar.png) | ![Estudo com dois lotes somados](docs/screenshots/varios-lotes.png) |
 
+## Jogo: Maré de Aço
+
+Em <http://localhost:3000/jogo> há também um jogo de **estratégia em tempo real** em 3D, com visual arredondado: a **Coalizão Aurora** (azul, você) contra a **Legião Escarlate** (vermelho, controlada pelo computador).
+
+![Base do jogador em Maré de Aço](docs/screenshots/jogo-base.png)
+
+- **Economia**: Usinas geram energia; a Refinaria traz um Coletor que busca cristais dourados e os converte em créditos. Com energia baixa a produção fica lenta e torres e radar desligam.
+- **Construções**: Centro de Comando, Usina, Refinaria, Quartel, Fábrica de Blindados, Radar (liga o minimapa) e Torre de Defesa. Dá para reparar, vender e escolher a fábrica principal.
+- **Unidades**: Fuzileiro, Lança-mísseis, Batedor, Tanque Vespa, Tanque Titã, Morteiro Móvel e Coletor, com tipos de arma e blindagem (bala, canhão, míssil e artilharia com dano em área).
+- **IA** em três dificuldades: ergue a base, mantém coletores, defende e ataca em ondas.
+- **Névoa de guerra**, explosões, fumaça, marcas de queimado e sons sintetizados.
+- **Controles**: mouse e teclado (esquerdo seleciona, direito comanda, A atacar-mover, S parar, Ctrl+1–9 grupos) ou toque (toque comanda, arrastar move a câmera, pinça dá zoom).
+
+| Combate | Celular |
+| --- | --- |
+| ![Combate perto da base inimiga](docs/screenshots/jogo-combate.png) | ![Jogo no celular](docs/screenshots/jogo-celular.png) |
+
 ## Como rodar
 
 Pré-requisito: [Node.js](https://nodejs.org/) 24 ou mais recente.
@@ -90,6 +107,16 @@ src/
     city.ts               # dados da cidade e do terreno
     zoning.ts             # parâmetros de zoneamento
     study.ts              # cálculos do estudo e da insolação
+  app/jogo/page.tsx       # rota do jogo Maré de Aço
+  components/jogo/        # interface do jogo (HUD, menus, painéis)
+  lib/jogo/
+    defs.ts               # regras: unidades, construções, armas, dificuldades
+    map.ts / path.ts      # geração do mapa e A*
+    game.ts               # simulação (economia, produção, combate, visão)
+    ai.ts                 # IA inimiga
+    input.ts / hud.ts     # controles e dados da interface/minimapa
+    audio.ts              # sons sintetizados
+    render/               # cena three.js, modelos 3D, partículas e ícones
 ```
 
 ## Tecnologias
