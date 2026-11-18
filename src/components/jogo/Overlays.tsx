@@ -224,8 +224,9 @@ export function StartScreen({ onStart, onHost, onJoin }: StartProps) {
               destino. Use “Mover” quando quiser passar sem parar para lutar.
             </HelpCard>
             <HelpCard title="Ponto de desembarque">
-              Toque no Quartel, na Fábrica ou no Heliporto e use “Ponto de desembarque”; depois toque no mapa. As tropas novas saem do prédio e
-              seguem até a bandeira. Vale para todos os prédios do mesmo tipo e pode ser removido no mesmo painel (atalho: D).
+              Toque no Quartel, na Fábrica ou no Heliporto e use “Ponto de desembarque”; depois toque no mapa (atalho: D). Cada prédio tem o seu
+              ponto: com dois quartéis, eles se revezam no treino e cada um manda os soldados para a sua bandeira. Marcando um como “Principal”,
+              tudo sai só dele.
             </HelpCard>
             <HelpCard title="Mouse e teclado">
               Esquerdo seleciona (arraste no vazio para área, duplo clique pega o mesmo tipo). Com tropas selecionadas, clique no chão para mover e

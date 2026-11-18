@@ -199,6 +199,7 @@ export class Game {
   speed = 1;
   paused = false;
   primary: [Partial<Record<Producer, number>>, Partial<Record<Producer, number>>] = [{}, {}];
+  private spawnTurn: [Partial<Record<Producer, number>>, Partial<Record<Producer, number>>] = [{}, {}];
   // times comandados por pessoas (recebem avisos); em rede os dois são humanos
   human: [boolean, boolean] = [true, false];
   private visTimer = 0;
@@ -428,7 +429,7 @@ export class Game {
       turret: team === 0 ? -Math.PI / 4 : (Math.PI * 3) / 4,
       targetId: null,
       scanTimer: 0,
-      rally: this.inheritedRally(team, kind),
+      rally: null,
       repairing: false,
       recoil: 0,
     };
@@ -517,12 +518,6 @@ export class Game {
     }
   }
 
-  private inheritedRally(team: Team, kind: BuildingKind) {
-    if (!isRallyKind(kind)) return null;
-    for (const b of this.buildings.values()) if (b.team === team && b.kind === kind && b.rally) return { ...b.rally };
-    return null;
-  }
-
   // Destino de uma tropa recém-produzida: o ponto de desembarque (espalhando um pouco
   // para não empilhar todo mundo no mesmo lugar) ou a frente do prédio.
   private rallyDest(src: Building, fallback: { x: number; z: number }) {
@@ -535,14 +530,29 @@ export class Game {
   private spawnProduced(team: Team, kind: UnitKind) {
     const d = UNITS[kind];
     const fk = PRODUCER_BUILDING[d.producer];
+    // Com prédio principal escolhido, tudo sai dele; senão os prédios do tipo se revezam
+    // (cada um manda as tropas para o seu próprio ponto de desembarque).
+    const all = [...this.buildings.values()].filter((b) => b.team === team && b.kind === fk);
+    if (!all.length) return false;
+    const prim = this.buildings.get(this.primary[team][d.producer] ?? -1);
+    const turn = this.spawnTurn[team][d.producer] ?? 0;
+    const order = prim && all.includes(prim) ? [prim] : all.map((_, i) => all[(turn + i) % all.length]);
     let src: Building | undefined;
-    const prim = this.primary[team][d.producer];
-    if (prim) {
-      const b = this.buildings.get(prim);
-      if (b && b.team === team && b.kind === fk) src = b;
+    let free: Pt | null = null;
+    for (const b of order) {
+      if (d.air) {
+        src = b;
+        break;
+      }
+      const ex = this.exitTile(b);
+      free = this.path.nearestFree(ex.x, ex.z, 6);
+      if (free) {
+        src = b;
+        break;
+      }
     }
-    if (!src) for (const b of this.buildings.values()) if (b.team === team && b.kind === fk) { src = b; break; }
     if (!src) return false;
+    this.spawnTurn[team][d.producer] = (all.indexOf(src) + 1) % all.length;
     if (d.air) {
       // decola do heliporto
       const cx = src.tx + src.w / 2;
@@ -554,8 +564,6 @@ export class Game {
       this.issueMove([u.id], dest.x, dest.z, false, true);
       return true;
     }
-    const ex = this.exitTile(src);
-    const free = this.path.nearestFree(ex.x, ex.z, 6);
     if (!free) return false;
     const u = this.addUnit(team, kind, src.tx + src.w / 2, src.tz + src.h - 0.4);
     u.angle = Math.PI / 2;
@@ -822,19 +830,18 @@ export class Game {
     this.events.push({ type: "click" });
   }
 
-  // Ponto de desembarque: vale para o prédio escolhido e para os outros do mesmo tipo
-  // (todas as tropas daquele tipo saem para o mesmo lugar). null remove o ponto.
+  // Ponto de desembarque de cada prédio produtor selecionado (cada um tem o seu). null remove.
   setRally(team: Team, ids: number[], point: { x: number; z: number } | null) {
-    const kinds = new Set<BuildingKind>();
+    const p = point ? { x: Math.max(0.5, Math.min(this.map.w - 0.5, point.x)), z: Math.max(0.5, Math.min(this.map.h - 0.5, point.z)) } : null;
+    let any = false;
     for (const id of ids) {
       const b = this.buildings.get(id);
-      if (b && b.team === team && isRallyKind(b.kind)) kinds.add(b.kind);
+      if (!b || b.team !== team || !isRallyKind(b.kind)) continue;
+      b.rally = p ? { ...p } : null;
+      any = true;
     }
-    if (!kinds.size) return false;
-    const p = point ? { x: Math.max(0.5, Math.min(this.map.w - 0.5, point.x)), z: Math.max(0.5, Math.min(this.map.h - 0.5, point.z)) } : null;
-    for (const b of this.buildings.values()) if (b.team === team && kinds.has(b.kind)) b.rally = p ? { ...p } : null;
-    this.events.push({ type: "click" });
-    return true;
+    if (any) this.events.push({ type: "click" });
+    return any;
   }
 
   // Comando "inteligente" do jogador: decide entre mover, atacar, coletar ou definir ponto de reunião.

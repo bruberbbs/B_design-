@@ -213,7 +213,7 @@ function RallyCommands({ sel, touch, rallyMode, onRallyMode, onClearRally }: { s
         {rallyMode
           ? `${touch ? "Toque" : "Clique"} no mapa onde ${sel.rallyOf} deve se reunir.`
           : sel.hasRally
-            ? `Ao sair, ${sel.rallyOf} vai até a bandeira. Vale para todos os prédios deste tipo.`
+            ? `Ao sair deste prédio, ${sel.rallyOf} vai até a bandeira. Cada prédio tem o seu ponto.`
             : `Defina para onde ${sel.rallyOf} vai ao ficar pronta.`}
       </p>
     </div>
