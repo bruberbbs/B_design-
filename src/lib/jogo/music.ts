@@ -388,7 +388,7 @@ export class Music {
     if (this.theme.bright) {
       o.connect(f).connect(g).connect(this.bus.bass);
     } else {
-      // Legião: baixo levemente distorcido
+      // Meridian: baixo levemente distorcido
       const pre = ctx.createGain();
       pre.gain.value = 1.6;
       const dist = ctx.createWaveShaper();

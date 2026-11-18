@@ -210,11 +210,11 @@ export function StartScreen({ onStart, onHost, onJoin }: StartProps) {
               Destrua todas as construções inimigas. Se você perder todas as suas, a batalha acaba.
             </HelpCard>
             <HelpCard title="Economia">
-              Usinas geram energia. A Refinaria traz um Coletor que busca cristais dourados e os transforma em créditos. Energia baixa deixa tudo lento e
-              desliga torres e radar.
+              Usinas geram energia. A Refinaria traz um Coletor que busca cristais dourados e os transforma em créditos. Energia baixa deixa produção e
+              defesas mais lentas e desliga o radar.
             </HelpCard>
             <HelpCard title="Facções">
-              A Coalizão Aurora aposta em mobilidade e precisão (Vespa, Lumen, Morteiro, Colibri, Torre de Defesa). A Legião Escarlate aposta em
+              A Coalizão Zênite aposta em precisão e defesa (Vespa, Lumen, Morteiro, Colibri, Torre de Defesa). A Aliança Meridian aposta em
               blindagem e fogo (Titã, Javali, Tempestade, Lança-chamas, Tufão, Torre Inferno). Construções básicas, Coletor, Fuzileiro, Lança-mísseis,
               Drone e Torre Antiaérea são comuns às duas.
             </HelpCard>

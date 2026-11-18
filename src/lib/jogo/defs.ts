@@ -168,7 +168,7 @@ export const UNITS: Record<UnitKind, UnitDef> = {
     faction: "escarlate",
     name: "Tanque Titã",
     short: "Titã",
-    desc: "Tanque principal da Legião: canhão duplo, lento e muito resistente.",
+    desc: "Tanque principal da Meridian: canhão duplo, lento e muito resistente.",
     cost: 1350,
     buildTime: 17,
     hp: 650,
@@ -626,7 +626,7 @@ export interface FactionInfo {
 
 export const FACTIONS: Record<Faction, FactionInfo> = {
   aurora: {
-    name: "Coalizão Aurora",
+    name: "Coalizão Zênite",
     main: "#3a81f5",
     dark: "#2f5ea8",
     light: "#9bcafe",
@@ -634,11 +634,11 @@ export const FACTIONS: Record<Faction, FactionInfo> = {
     uniform: ["#6e7552", "#50573d", "#8c8866", "#383d2e"],
     structure: "#a3a48e",
     emblem: "zenite",
-    motto: "Precisão, mobilidade e tecnologia.",
+    motto: "“Acima de tudo, vigilância.” Disciplina, tecnologia e controle.",
     traits: ["Tanque Vespa ágil e Batedor rápido", "Tanque Lumen com feixe de laser", "Morteiro de longo alcance", "Helicóptero Colibri antiblindagem"],
   },
   escarlate: {
-    name: "Legião Escarlate",
+    name: "Aliança Meridian",
     main: "#fe694b",
     dark: "#a6402c",
     light: "#feb39d",
@@ -646,7 +646,7 @@ export const FACTIONS: Record<Faction, FactionInfo> = {
     uniform: ["#a8916a", "#806a47", "#c9b48b", "#5a4932"],
     structure: "#c4b08c",
     emblem: "meridian",
-    motto: "Força bruta, fogo e blindagem pesada.",
+    motto: "“Ao meio-dia, não há sombra.” Força bruta, velocidade e pressão.",
     traits: ["Tanque Titã já de início", "Lança-chamas e Torre Inferno", "Salvas do Lança-foguetes Tempestade", "Helicóptero Tufão anti-infantaria"],
   },
 };

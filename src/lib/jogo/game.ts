@@ -348,7 +348,7 @@ export class Game {
     return this.hasBuilding(team, r);
   }
 
-  // Nome do pré-requisito como o time o conhece (a Legião usa a Torre Inferno).
+  // Nome do pré-requisito como o time o conhece (a Meridian usa a Torre Inferno).
   reqName(team: Team, r: BuildingKind) {
     if (r === "turret") {
       const k = DEFENSE_TOWERS.find((t) => this.inRoster(team, t)) ?? "turret";

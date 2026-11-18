@@ -28,7 +28,7 @@ Ferramenta web para **estudo de viabilidade de lotes** em um mapa 3D: clique em 
 
 ## Jogo: Force One
 
-Em <http://localhost:3000/jogo> há também **Force One**, um jogo de **estratégia em tempo real** em 3D, com visual arredondado. Na tela inicial você escolhe sua facção — **Coalizão Aurora** (azul) ou **Legião Escarlate** (vermelha) — e joga **contra o computador** ou **em rede contra outro aparelho**.
+Em <http://localhost:3000/jogo> há também **Force One**, um jogo de **estratégia em tempo real** em 3D, com visual arredondado. Na tela inicial você escolhe sua facção — **Coalizão Zênite** (azul) ou **Aliança Meridian** (vermelha) — e joga **contra o computador** ou **em rede contra outro aparelho**.
 
 ![Escolha de facção e mapa](docs/screenshots/jogo-faccoes.png)
 
@@ -47,7 +47,7 @@ Em <http://localhost:3000/jogo> há também **Force One**, um jogo de **estraté
   | ![Deserto](docs/screenshots/jogo-mapa-dunas.png) | ![Tundra](docs/screenshots/jogo-mapa-fiorde.png) | ![Vulcão](docs/screenshots/jogo-mapa-caldeira.png) |
 - **Facções**:
 
-  | | Coalizão Aurora — mobilidade e precisão | Legião Escarlate — fogo e blindagem |
+  | | Coalizão Zênite — “Acima de tudo, vigilância.” | Aliança Meridian — “Ao meio-dia, não há sombra.” |
   | --- | --- | --- |
   | Infantaria | — | Lança-chamas |
   | Veículos | Batedor, Tanque Vespa, Morteiro Móvel, Tanque Lumen (laser) | Blindado Javali, Tanque Titã, Lança-foguetes Tempestade |
@@ -59,9 +59,9 @@ Em <http://localhost:3000/jogo> há também **Force One**, um jogo de **estraté
 - **Aeronaves**: voam em linha reta por cima de rios, rochas e árvores. Só armas antiaéreas as atingem: Torre Antiaérea, Fuzileiro, Lança-mísseis, Batedor, Javali e Drone; tanques, artilharia e torres terrestres não.
 - **IA** em três dificuldades: ergue a base, mantém coletores, defende e ataca em ondas.
 - **Névoa de guerra**, explosões, fumaça, marcas de queimado e sons sintetizados.
-- **Trilha sonora adaptativa**, composta e sintetizada em tempo real (sem arquivos de áudio): um tema por facção — Aurora em ré maior, luminoso, a 104 BPM; Legião em dó menor, sombrio, a 92 BPM, com baixo distorcido — que passa de calmo para tensão (inimigos à vista) e batalha (combate ou base sob ataque), com vinhetas de vitória e derrota. Música e efeitos podem ser ligados e desligados separadamente no menu, e a escolha fica salva no navegador.
-- **Cores e brasões das facções**: paleta do guia de identidade (azul `#3a81f5`/`#9bcafe` para a Aurora, coral `#fe694b`/`#feb39d` para a Legião) nas faixas, bandeiras, insígnias, minimapa e interface. O brasão de cada facção (escudo com divisas e escudo com sol) fica pintado no teto do QG e aparece na tela inicial; os desenhos ficam em `src/lib/jogo/emblems.ts`.
-- **Visual militar realista**: tanques com blindagem inclinada, lagartas, rodas, escotilhas e antenas; soldados com farda camuflada, colete e capacete; construções de concreto, chapa corrugada e aço (centro de comando, torres de resfriamento, galpões, hangar com telhado em dente de serra, casamatas com sacos de areia). Texturas procedurais de camuflagem por facção (mata para a Aurora, deserto para a Legião), com marcações na cor do time.
+- **Trilha sonora adaptativa**, composta e sintetizada em tempo real (sem arquivos de áudio): um tema por facção — Zênite em ré maior, luminoso, a 104 BPM; Meridian em dó menor, sombrio, a 92 BPM, com baixo distorcido — que passa de calmo para tensão (inimigos à vista) e batalha (combate ou base sob ataque), com vinhetas de vitória e derrota. Música e efeitos podem ser ligados e desligados separadamente no menu, e a escolha fica salva no navegador.
+- **Cores e brasões das facções**: paleta do guia de identidade (azul `#3a81f5`/`#9bcafe` para a Zênite, coral `#fe694b`/`#feb39d` para a Meridian) nas faixas, bandeiras, insígnias, minimapa e interface. O brasão de cada facção (escudo com divisas e escudo com sol) fica pintado no teto do QG e aparece na tela inicial; os desenhos ficam em `src/lib/jogo/emblems.ts`.
+- **Visual militar realista**: tanques com blindagem inclinada, lagartas, rodas, escotilhas e antenas; soldados com farda camuflada, colete e capacete; construções de concreto, chapa corrugada e aço (centro de comando, torres de resfriamento, galpões, hangar com telhado em dente de serra, casamatas com sacos de areia). Texturas procedurais de camuflagem por facção (mata para a Zênite, deserto para a Meridian), com marcações na cor do time.
 - **Gráficos**: iluminação de ambiente com reflexos nos metais, oclusão de ambiente, brilho em fogo e explosões, antisserrilhado, sombras em alta resolução e luzes nas explosões. Veículos destruídos viram carcaças queimadas que fumegam, soldados caem e construções deixam ruínas. No menu, **Gráficos: Máxima, Equilibrada ou Leve** (padrão: máxima no computador e equilibrada no celular).
 - **Comandos das tropas**: selecione e **clique/toque no mapa** para mover até o ponto escolhido, ou num inimigo para atacar. Também dá para **arrastar a tropa até o destino** (soltar sobre um inimigo ataca) e usar os botões **Mover** (vai direto, sem parar para lutar), **Atacar** e **Parar**. Setas no chão mostram para onde cada grupo vai (verde = mover, vermelho = atacar).
 - **Defesas**: torres e antiaéreas atiram sozinhas em quem entra no alcance; com energia baixa continuam funcionando, mas giram e recarregam pela metade da velocidade.
