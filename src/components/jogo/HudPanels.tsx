@@ -205,9 +205,9 @@ export function SelectionPanel({ sel, thumbs, onSell, onRepair, onPrimary, onSto
   return (
     <div className="rounded-2xl bg-black/35 p-2.5 ring-1 ring-white/10">
       <div className="flex items-start gap-2.5">
-        <div className={cn("size-12 shrink-0 rounded-xl ring-1", sel.own ? "bg-sky-500/15 ring-sky-300/30" : "bg-red-500/15 ring-red-300/30")}>
+        <div className={cn("size-12 shrink-0 rounded-xl ring-1", sel.own ? "bg-emerald-500/10 ring-emerald-300/30" : "bg-red-500/15 ring-red-300/30")}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          {thumbs[sel.kind] && <img src={thumbs[sel.kind]} alt="" className={cn("size-full object-contain", !sel.own && "hue-rotate-[150deg]")} />}
+          {thumbs[sel.own ? sel.kind : `e:${sel.kind}`] && <img src={thumbs[sel.own ? sel.kind : `e:${sel.kind}`]} alt="" className="size-full object-contain" />}
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center justify-between gap-1">

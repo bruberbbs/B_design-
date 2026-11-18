@@ -1,7 +1,7 @@
 // Cena 3D: câmera isométrica, terreno, névoa de guerra, entidades e efeitos.
 
 import * as THREE from "three";
-import { AIR_ALT, BUILDINGS, TEAM_COLORS, UNITS, type BuildingKind, type Team } from "../defs";
+import { AIR_ALT, BUILDINGS, UNITS, type BuildingKind, type Team } from "../defs";
 import type { Building, Entity, Game, GameEvent, Unit } from "../game";
 import { mulberry32, Terrain } from "../map";
 import { ModelKit, type BuildingModel, type UnitModel } from "./models";
@@ -116,12 +116,13 @@ export class GameRenderer {
     this.fogUniforms = { uFogTex: { value: this.fogTex }, uMapSize: { value: new THREE.Vector2(w, h) } };
 
     const patch = (m: THREE.Material) => this.fogify(m);
-    this.kit = new ModelKit(patch);
+    const colorsOf = (t: Team) => game.colors(t);
+    this.kit = new ModelKit(patch, colorsOf);
     this.ghostKit = new ModelKit((m) => {
       m.transparent = true;
       m.opacity = 0.55;
       m.depthWrite = false;
-    });
+    }, colorsOf);
 
     // luzes
     const hemi = new THREE.HemisphereLight("#e4f0ff", "#6b6f4a", 1.15);
@@ -554,7 +555,7 @@ export class GameRenderer {
     const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.7, 6), new THREE.MeshBasicMaterial({ color: "#e8edf5" }));
     pole.position.y = 0.35;
     g.add(pole);
-    const flag = new THREE.Mesh(new THREE.PlaneGeometry(0.3, 0.18), new THREE.MeshBasicMaterial({ color: TEAM_COLORS[0].main, side: THREE.DoubleSide }));
+    const flag = new THREE.Mesh(new THREE.PlaneGeometry(0.3, 0.18), new THREE.MeshBasicMaterial({ color: this.game.colors(0).main, side: THREE.DoubleSide }));
     flag.position.set(0.15, 0.6, 0);
     g.add(flag);
     return g;
@@ -953,8 +954,8 @@ export class GameRenderer {
       seen.add(p.id);
       let o = this.projViews.get(p.id);
       if (!o) {
-        const color = p.kind === "rocket" ? "#ffe9a8" : p.kind === "shell" ? "#2f3238" : "#ffd27a";
-        const size = p.kind === "shell" ? 0.09 : p.kind === "rocket" ? 0.06 : 0.055;
+        const color = p.kind === "rocket" ? "#ffe9a8" : p.kind === "shell" ? "#2f3238" : p.kind === "flame" ? "#ffb347" : "#ffd27a";
+        const size = p.kind === "shell" ? 0.09 : p.kind === "rocket" ? 0.06 : p.kind === "flame" ? 0.08 : 0.055;
         const mat = new THREE.MeshBasicMaterial({ color });
         o = new THREE.Mesh(this.kit.sphere(size, 8, 6), mat);
         if (p.kind === "rocket") o.scale.set(2.2, 1, 1);
@@ -968,6 +969,22 @@ export class GameRenderer {
       if (vis && (p.kind === "rocket" || p.kind === "shell")) {
         this.smoke.emit({ x: p.x, y: p.y, z: p.z, life: 0.6, size0: 0.08, size1: 0.28, color: "#d8d8d8", alpha: 0.5 });
         if (p.kind === "rocket") this.fire.emit({ x: p.x, y: p.y, z: p.z, life: 0.12, size0: 0.14, size1: 0.02, color: "#ffcf6b", alpha: 1 });
+      }
+      if (vis && p.kind === "flame") {
+        // jato de fogo: várias bolhas que crescem e somem
+        for (let i = 0; i < 3; i++)
+          this.fire.emit({
+            x: p.x + (Math.random() - 0.5) * 0.12,
+            y: p.y + (Math.random() - 0.5) * 0.08,
+            z: p.z + (Math.random() - 0.5) * 0.12,
+            vy: 0.4,
+            life: 0.3,
+            size0: 0.12,
+            size1: 0.32,
+            color: "#ffe28a",
+            color1: "#ff4d12",
+            alpha: 0.9,
+          });
       }
     }
     for (const [id, o] of this.projViews) {
@@ -1057,6 +1074,37 @@ export class GameRenderer {
     this.fire.emit({ x: tx + (Math.random() - 0.5) * 0.2, y: ty, z: tz + (Math.random() - 0.5) * 0.2, life: 0.1, size0: 0.1, size1: 0.02, color: "#ffe08a" });
   }
 
+  // feixe de laser: linha brilhante de partículas e faísca no alvo
+  private beam(x: number, y: number, z: number, tx: number, ty: number, tz: number) {
+    const len = Math.hypot(tx - x, tz - z, ty - y);
+    const n = Math.max(6, Math.round(len * 7));
+    for (let i = 0; i <= n; i++) {
+      const k = i / n;
+      this.fire.emit({ x: x + (tx - x) * k, y: y + (ty - y) * k, z: z + (tz - z) * k, life: 0.22, size0: 0.16, size1: 0.04, color: "#e6fdff", color1: "#24c8ff" });
+    }
+    this.fire.emit({ x, y, z, life: 0.2, size0: 0.4, size1: 0.1, color: "#ffffff", color1: "#38d9ff" });
+    this.fire.emit({ x: tx, y: ty, z: tz, life: 0.3, size0: 0.55, size1: 0.1, color: "#ffffff", color1: "#38d9ff" });
+    for (let i = 0; i < 6; i++)
+      this.fire.emit({ x: tx, y: ty, z: tz, vx: (Math.random() - 0.5) * 3, vy: 1 + Math.random() * 2, vz: (Math.random() - 0.5) * 3, gravity: 8, life: 0.4, size0: 0.05, size1: 0.02, color: "#bff6ff" });
+  }
+
+  private flameBurst(x: number, y: number, z: number) {
+    for (let i = 0; i < 8; i++)
+      this.fire.emit({
+        x: x + (Math.random() - 0.5) * 0.5,
+        y: Math.max(0.1, y - 0.1),
+        z: z + (Math.random() - 0.5) * 0.5,
+        vy: 0.6 + Math.random() * 0.6,
+        life: 0.45 + Math.random() * 0.3,
+        size0: 0.2,
+        size1: 0.4,
+        color: "#ffd56b",
+        color1: "#ff3d0d",
+        alpha: 0.9,
+      });
+    this.smoke.emit({ x, y: 0.4, z, vy: 0.5, life: 1.2, size0: 0.2, size1: 0.6, color: "#3d3d42", alpha: 0.45 });
+  }
+
   // estouro de flak: nuvem escura com clarão
   private flakBurst(x: number, y: number, z: number) {
     this.fire.emit({ x, y, z, life: 0.12, size0: 0.5, size1: 0.1, color: "#fff2b0", color1: "#ff9a3a" });
@@ -1121,13 +1169,19 @@ export class GameRenderer {
           if (e.weapon === "bullet") {
             this.muzzle(e.x, e.y, e.z, e.tx, e.tz, false);
             this.tracer(e.x, e.y, e.z, e.tx, e.ty, e.tz);
-          } else this.muzzle(e.x, e.y, e.z, e.tx, e.tz, e.weapon !== "rocket");
+          } else if (e.weapon === "laser") this.beam(e.x, e.y, e.z, e.tx, e.ty, e.tz);
+          else if (e.weapon === "flame") this.fire.emit({ x: e.x, y: e.y, z: e.z, life: 0.15, size0: 0.3, size1: 0.1, color: "#fff0a0", color1: "#ff7a1a" });
+          else this.muzzle(e.x, e.y, e.z, e.tx, e.tz, e.weapon !== "rocket");
           break;
         }
         case "impact":
           if (!g.isVisible(0, e.x, e.z)) break;
           if (e.weapon === "flak") {
             this.flakBurst(e.x, e.y, e.z);
+            break;
+          }
+          if (e.weapon === "flame") {
+            this.flameBurst(e.x, e.y, e.z);
             break;
           }
           this.explosion(e.x, e.z, e.big ? 0.75 : e.weapon === "cannon" ? 0.35 : 0.45, Math.max(0.15, e.y - 0.1));

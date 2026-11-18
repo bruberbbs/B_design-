@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Map as MapIcon, Menu, Pause } from "lucide-react";
 import { AIController } from "@/lib/jogo/ai";
 import { Sfx } from "@/lib/jogo/audio";
-import { BUILDINGS, type Difficulty, type Producer } from "@/lib/jogo/defs";
+import { BUILDINGS, FACTIONS, OTHER_FACTION, type Difficulty, type Faction, type Producer } from "@/lib/jogo/defs";
 import { Game } from "@/lib/jogo/game";
 import { drawMinimap, minimapToWorld, snapshot, type HudSnapshot, type ItemKind } from "@/lib/jogo/hud";
 import { InputController, type InputMode } from "@/lib/jogo/input";
@@ -32,7 +32,14 @@ interface Toast {
 const INITIAL_MODE: InputMode = { placing: null, attackMove: false, boxMode: false };
 let toastId = 1;
 
-export function GameView({ difficulty, onRestart, onMenu }: { difficulty: Difficulty; onRestart: () => void; onMenu: () => void }) {
+interface GameViewProps {
+  difficulty: Difficulty;
+  faction: Faction;
+  onRestart: () => void;
+  onMenu: () => void;
+}
+
+export function GameView({ difficulty, faction, onRestart, onMenu }: GameViewProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -73,7 +80,7 @@ export function GameView({ difficulty, onRestart, onMenu }: { difficulty: Diffic
     if (!canvas || !wrap) return;
     const coarse = window.matchMedia("(pointer: coarse)").matches;
     const lowPower = coarse || window.innerWidth < 900;
-    const game = new Game(difficulty);
+    const game = new Game(difficulty, faction);
     let renderer: GameRenderer;
     try {
       renderer = new GameRenderer(canvas, game, { lowPower });
@@ -147,7 +154,7 @@ export function GameView({ difficulty, onRestart, onMenu }: { difficulty: Diffic
 
     const thumbTimer = window.setTimeout(() => {
       setTouch(coarse);
-      setThumbs(renderThumbnails());
+      setThumbs(renderThumbnails([FACTIONS[faction], FACTIONS[OTHER_FACTION[faction]]]));
       pushToast("Construa usinas, uma refinaria e um exército. Destrua a base inimiga!", "info");
     }, 60);
 
@@ -161,7 +168,7 @@ export function GameView({ difficulty, onRestart, onMenu }: { difficulty: Diffic
       renderer.dispose();
       engineRef.current = null;
     };
-  }, [difficulty, setMode, openMenu, pushToast]);
+  }, [difficulty, faction, setMode, openMenu, pushToast]);
 
   // ------------------------------------------------------------ ações da interface
 

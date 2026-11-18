@@ -6,7 +6,6 @@ import {
   BUILD_ORDER_AIR,
   BUILD_ORDER_VEHICLES,
   BUILDINGS,
-  TEAM_COLORS,
   UNITS,
   type BuildingKind,
   type Producer,
@@ -65,6 +64,8 @@ export interface HudSnapshot {
   hasCommandable: boolean;
   stats: { built: number; lost: number; kills: number; harvested: number; structures: number };
   enemyStats: { lost: number };
+  playerName: string;
+  enemyName: string;
 }
 
 const HARVEST_LABEL: Record<string, string> = {
@@ -86,7 +87,7 @@ export function snapshot(g: Game): HudSnapshot {
   ];
   for (const [p, kinds] of lists) {
     const q = ts.queues[p];
-    items[p] = kinds.map((kind) => {
+    items[p] = kinds.filter((kind) => g.inRoster(0, kind)).map((kind) => {
       const isUnit = kind in UNITS;
       const def = isUnit ? UNITS[kind as UnitKind] : BUILDINGS[kind as BuildingKind];
       const reqs = def.requires.filter((r) => !g.hasBuilding(0, r));
@@ -129,7 +130,7 @@ export function snapshot(g: Game): HudSnapshot {
         isPrimary: false,
         status:
           e.team !== 0
-            ? TEAM_COLORS[e.team].name
+            ? g.colors(e.team).name
             : e.kind === "harvester"
               ? HARVEST_LABEL[e.hState]
               : e.order === "idle"
@@ -157,7 +158,7 @@ export function snapshot(g: Game): HudSnapshot {
         canSell: e.team === 0 && e.kind !== "hq",
         canPrimary: e.team === 0 && multiple,
         isPrimary: g.primary[p] === e.id,
-        status: e.team !== 0 ? TEAM_COLORS[e.team].name : BUILDINGS[e.kind].desc,
+        status: e.team !== 0 ? g.colors(e.team).name : BUILDINGS[e.kind].desc,
       };
     }
   } else if (sel.length > 1) {
@@ -183,6 +184,8 @@ export function snapshot(g: Game): HudSnapshot {
     hasCommandable,
     stats: { ...ts.stats },
     enemyStats: { lost: g.teams[1].stats.lost },
+    playerName: g.colors(0).name,
+    enemyName: g.colors(1).name,
   };
 }
 
@@ -248,7 +251,7 @@ export function drawMinimap(
   ctx.drawImage(miniImage(g), 0, 0);
   for (const b of g.buildings.values()) {
     if (!g.entityVisibleTo(0, b)) continue;
-    ctx.fillStyle = TEAM_COLORS[b.team].main;
+    ctx.fillStyle = g.colors(b.team).main;
     ctx.fillRect(b.tx, b.tz, b.w, b.h);
     ctx.strokeStyle = "rgba(255,255,255,0.7)";
     ctx.lineWidth = 0.25;
@@ -256,7 +259,7 @@ export function drawMinimap(
   }
   for (const u of g.units.values()) {
     if (u.team !== 0 && !g.isVisible(0, u.x, u.z)) continue;
-    ctx.fillStyle = u.team === 0 ? "#bfe0ff" : "#ffb0a6";
+    ctx.fillStyle = g.colors(u.team).light;
     ctx.beginPath();
     ctx.arc(u.x, u.z, 0.75, 0, Math.PI * 2);
     ctx.fill();

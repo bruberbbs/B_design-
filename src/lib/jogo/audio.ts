@@ -84,6 +84,10 @@ export class Sfx {
           this.budget--;
           if (e.weapon === "bullet") this.noiseBurst(0.07, 2400, "bandpass", 0.25 * v);
           else if (e.weapon === "flak") this.noiseBurst(0.12, 1600, "bandpass", 0.3 * v, 500);
+          else if (e.weapon === "laser") {
+            this.tone(1800, 0.22, "sawtooth", 0.06 * v, 0, 300);
+            this.tone(900, 0.25, "sine", 0.1 * v, 0, 200);
+          } else if (e.weapon === "flame") this.noiseBurst(0.45, 700, "lowpass", 0.22 * v, 250);
           else if (e.weapon === "cannon") {
             this.noiseBurst(0.25, 900, "lowpass", 0.5 * v, 120);
             this.tone(110, 0.18, "sine", 0.25 * v, 0, 50);
@@ -93,7 +97,7 @@ export class Sfx {
         }
         case "impact": {
           const v = near(e.x, e.z);
-          if (v <= 0 || e.weapon === "bullet") break;
+          if (v <= 0 || e.weapon === "bullet" || e.weapon === "flame") break;
           this.budget--;
           this.noiseBurst(e.big ? 0.7 : 0.35, e.big ? 700 : 1200, "lowpass", (e.big ? 0.6 : 0.3) * v, 60);
           break;

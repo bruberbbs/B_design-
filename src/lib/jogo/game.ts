@@ -2,18 +2,22 @@
 
 import {
   AIR_ALT,
+  availableTo,
   BUILDINGS,
   canHitLayer,
   DAMAGE_TABLE,
   DIFFICULTY,
+  FACTIONS,
   HARVEST_CAPACITY,
   HARVEST_SCOOP,
+  OTHER_FACTION,
   PLACE_RADIUS,
   PRODUCER_BUILDING,
   START_CREDITS,
   UNITS,
   type BuildingKind,
   type Difficulty,
+  type Faction,
   type Producer,
   type TargetLayer,
   type Team,
@@ -198,8 +202,11 @@ export class Game {
   private endTimer = 0;
   private airAlerted = false;
 
-  constructor(difficulty: Difficulty, seed = 7) {
+  factions: [Faction, Faction];
+
+  constructor(difficulty: Difficulty, playerFaction: Faction = "aurora", seed = 7) {
     this.difficulty = difficulty;
+    this.factions = [playerFaction, OTHER_FACTION[playerFaction]];
     this.map = generateMap(seed);
     const n = this.map.w * this.map.h;
     this.bOcc = new Int32Array(n);
@@ -226,15 +233,26 @@ export class Game {
       const cx = s.x + 1.5;
       const cz = s.z + 1.5;
       const dir = team === 0 ? 1 : -1;
-      const spawn: [UnitKind, number, number][] = [
-        ["tank", 3.2, -2.5],
-        ["tank", 3.6, -1.2],
-        ["rifle", 2.4, 2.6],
-        ["rifle", 3.0, 2.9],
-        ["rifle", 3.6, 2.6],
-        ["rocket", 3.3, 3.5],
-        ["scout", 4.5, 0.6],
-      ];
+      // tropas iniciais de cada facção (custos parecidos)
+      const spawn: [UnitKind, number, number][] =
+        this.factions[team] === "aurora"
+          ? [
+              ["tank", 3.2, -2.5],
+              ["tank", 3.6, -1.2],
+              ["rifle", 2.4, 2.6],
+              ["rifle", 3.0, 2.9],
+              ["rifle", 3.6, 2.6],
+              ["rocket", 3.3, 3.5],
+              ["scout", 4.5, 0.6],
+            ]
+          : [
+              ["heavy", 3.4, -1.9],
+              ["javali", 4.5, 0.6],
+              ["rifle", 2.4, 2.6],
+              ["rifle", 3.0, 2.9],
+              ["flamer", 3.6, 2.6],
+              ["rocket", 3.3, 3.5],
+            ];
       for (const [k, ox, oz] of spawn) {
         const u = this.addUnit(team, k, cx + ox * dir, cz + oz * -dir);
         u.angle = team === 0 ? -Math.PI / 4 : (Math.PI * 3) / 4;
@@ -302,7 +320,18 @@ export class Game {
     return this.hasBuilding(team, "radar") && !this.teams[team].lowPower;
   }
 
+  colors(team: Team) {
+    return FACTIONS[this.factions[team]];
+  }
+
+  // Se a facção do time tem acesso a esta unidade/construção.
+  inRoster(team: Team, kind: UnitKind | BuildingKind) {
+    const d = kind in UNITS ? UNITS[kind as UnitKind] : BUILDINGS[kind as BuildingKind];
+    return availableTo(d, this.factions[team]);
+  }
+
   canProduce(team: Team, kind: UnitKind | BuildingKind) {
+    if (!this.inRoster(team, kind)) return false;
     if (kind in UNITS) {
       const d = UNITS[kind as UnitKind];
       return d.requires.every((r) => this.hasBuilding(team, r));
@@ -878,7 +907,7 @@ export class Game {
       return;
     }
     const dist = Math.hypot(tc.x - sx, tc.z - sz);
-    const spread = w.kind === "shell" ? 0.35 : 0;
+    const spread = w.kind === "shell" ? 0.35 : w.arc ? 0.7 : 0;
     this.projectiles.push({
       id: idCounter++,
       kind: w.kind,
@@ -891,12 +920,19 @@ export class Game {
       y: sy,
       tx: tc.x + (Math.random() - 0.5) * spread,
       tz: tc.z + (Math.random() - 0.5) * spread,
-      targetId: w.kind === "shell" ? null : target.id,
+      targetId: w.kind === "shell" || w.arc ? null : target.id,
       t: 0,
       dur: Math.max(0.12, dist / w.projectileSpeed),
       damage: w.damage,
       splash: w.splash ?? 0,
-      arc: w.kind === "shell" ? 1.2 + dist * 0.25 : w.kind === "rocket" && !isAir(target) && !isAir(src) ? 0.35 : 0,
+      arc:
+        w.arc !== undefined
+          ? w.arc + dist * 0.12
+          : w.kind === "shell"
+            ? 1.2 + dist * 0.25
+            : w.kind === "rocket" && !isAir(target) && !isAir(src)
+              ? 0.35
+              : 0,
       ty,
       targets: w.targets ?? "ground",
       sourceId: src.id,

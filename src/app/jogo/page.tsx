@@ -3,7 +3,7 @@ import { JogoClient } from "@/components/jogo/JogoClient";
 
 export const metadata: Metadata = {
   title: "Maré de Aço",
-  description: "Jogo de estratégia em tempo real: colete cristais, construa sua base e derrote a Legião Escarlate.",
+  description: "Jogo de estratégia em tempo real: colete cristais, escolha entre duas facções, construa sua base e derrote o exército rival.",
 };
 
 export const viewport: Viewport = {

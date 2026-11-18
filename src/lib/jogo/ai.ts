@@ -1,6 +1,6 @@
-// IA da Legião Escarlate: constrói a base, mantém a economia, treina tropas e ataca em ondas.
+// IA inimiga: constrói a base, mantém a economia, treina tropas da sua facção e ataca em ondas.
 
-import { BUILDINGS, DIFFICULTY, UNITS, type BuildingKind, type Team, type UnitKind } from "./defs";
+import { BUILDINGS, DIFFICULTY, UNITS, type BuildingKind, type Faction, type Producer, type Team, type UnitKind } from "./defs";
 import type { Game, Unit } from "./game";
 
 const PLAN: BuildingKind[] = [
@@ -24,6 +24,42 @@ const PLAN: BuildingKind[] = [
   "aa",
   "turret",
 ];
+
+// Preferências de produção por facção (peso relativo). Unidades indisponíveis são ignoradas.
+const MIX: Record<Faction, Record<Exclude<Producer, "structure">, [UnitKind, number][]>> = {
+  aurora: {
+    infantry: [
+      ["rifle", 5],
+      ["rocket", 4],
+    ],
+    vehicle: [
+      ["tank", 5],
+      ["scout", 1.5],
+      ["lumen", 3],
+      ["artillery", 2],
+    ],
+    air: [
+      ["heli", 6],
+      ["drone", 3],
+    ],
+  },
+  escarlate: {
+    infantry: [
+      ["rifle", 4],
+      ["flamer", 3],
+      ["rocket", 3],
+    ],
+    vehicle: [
+      ["heavy", 5],
+      ["javali", 2.5],
+      ["tempest", 2.5],
+    ],
+    air: [
+      ["tufao", 6],
+      ["drone", 3],
+    ],
+  },
+};
 
 export class AIController {
   private thinkTimer = 1;
@@ -86,28 +122,20 @@ export class AIController {
     const reserve = ts.queues.structure.length > 0 ? 400 : 0;
     if (ts.credits > reserve + 150) {
       const enemyAir = this.enemyAirCount();
-      if (ts.queues.infantry.length < 2 && g.canProduce(this.team, "rifle")) {
-        g.queueProduction(this.team, Math.random() < (enemyAir > 0 ? 0.3 : 0.55) ? "rifle" : "rocket");
-      }
-      if (ts.queues.air.length < 1 && g.canProduce(this.team, "heli")) {
-        g.queueProduction(this.team, Math.random() < 0.65 ? "heli" : "drone");
-      }
-      if (ts.queues.vehicle.length < 2 && g.canProduce(this.team, "tank")) {
-        const opts: [UnitKind, number][] = [
-          ["tank", 5],
-          ["scout", 1.5],
-        ];
-        if (g.canProduce(this.team, "heavy")) opts.push(["heavy", 3]);
-        if (g.canProduce(this.team, "artillery")) opts.push(["artillery", 2]);
-        const tot = opts.reduce((s, o) => s + o[1], 0);
-        let r = Math.random() * tot;
-        for (const [k, wgt] of opts) {
-          r -= wgt;
-          if (r <= 0) {
-            g.queueProduction(this.team, k);
-            break;
-          }
-        }
+      const mix = MIX[g.factions[this.team]];
+      const limits: [Exclude<Producer, "structure">, number][] = [
+        ["infantry", 2],
+        ["vehicle", 2],
+        ["air", 1],
+      ];
+      for (const [p, max] of limits) {
+        if (ts.queues[p].length >= max) continue;
+        // contra aeronaves, reforça quem atira para cima
+        const opts = mix[p]
+          .filter(([k]) => g.canProduce(this.team, k))
+          .map(([k, w]): [UnitKind, number] => [k, enemyAir > 0 && UNITS[k].weapon?.targets ? w * 2 : w]);
+        const pick = this.weighted(opts);
+        if (pick) g.queueProduction(this.team, pick);
       }
     }
 
@@ -118,6 +146,16 @@ export class AIController {
 
     this.defend();
     this.attack();
+  }
+
+  private weighted(opts: [UnitKind, number][]): UnitKind | null {
+    const tot = opts.reduce((s, o) => s + o[1], 0);
+    let r = Math.random() * tot;
+    for (const [k, w] of opts) {
+      r -= w;
+      if (r <= 0) return k;
+    }
+    return opts.length ? opts[opts.length - 1][0] : null;
   }
 
   private enemyAirCount() {
@@ -136,7 +174,9 @@ export class AIController {
     const have: Partial<Record<BuildingKind, number>> = {};
     for (const b of g.buildings.values()) if (b.team === this.team) have[b.kind] = (have[b.kind] ?? 0) + 1;
     const need: Partial<Record<BuildingKind, number>> = {};
-    for (const k of PLAN) {
+    const defense: BuildingKind = g.factions[this.team] === "aurora" ? "turret" : "inferno";
+    for (const planned of PLAN) {
+      const k = planned === "turret" ? defense : planned;
       need[k] = (need[k] ?? 0) + 1;
       if ((have[k] ?? 0) < need[k]!) {
         if (!g.canProduce(this.team, k)) return null;
@@ -168,7 +208,7 @@ export class AIController {
           const pz = tz + d.h / 2 - c.z;
           const forward = (px * towardEnemy.x + pz * towardEnemy.z) / len;
           let score = Math.hypot(px, pz);
-          if (kind === "turret" || kind === "aa") score = Math.abs(Math.hypot(px, pz) - 7) - forward * 0.8 + Math.random() * 2;
+          if (kind === "turret" || kind === "inferno" || kind === "aa") score = Math.abs(Math.hypot(px, pz) - 7) - forward * 0.8 + Math.random() * 2;
           else score -= forward * 0.15;
           if (score < bestScore) {
             bestScore = score;

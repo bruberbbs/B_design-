@@ -2,13 +2,14 @@
 
 import { useState } from "react";
 import { Play, RotateCcw, Skull, Swords, Trophy, Volume2, VolumeX, House, ChevronDown } from "lucide-react";
-import { DIFFICULTY, TEAM_COLORS, type Difficulty } from "@/lib/jogo/defs";
+import { DIFFICULTY, FACTIONS, type Difficulty, type Faction } from "@/lib/jogo/defs";
 import type { HudSnapshot } from "@/lib/jogo/hud";
 import { cn } from "@/lib/utils";
 import { formatTime } from "./HudPanels";
 
-export function StartScreen({ onStart }: { onStart: (d: Difficulty) => void }) {
+export function StartScreen({ onStart }: { onStart: (d: Difficulty, f: Faction) => void }) {
   const [diff, setDiff] = useState<Difficulty>("normal");
+  const [faction, setFaction] = useState<Faction>("aurora");
   const [help, setHelp] = useState(false);
   return (
     <div className="fixed inset-0 overflow-y-auto bg-[#0a0e18] text-white">
@@ -19,17 +20,46 @@ export function StartScreen({ onStart }: { onStart: (d: Difficulty) => void }) {
       </div>
       <div className="relative mx-auto flex min-h-full max-w-xl flex-col items-center justify-center px-5 py-10 text-center">
         <div className="mb-5 flex items-center gap-3">
-          <span className="size-4 rounded-full shadow-[0_0_20px_currentColor]" style={{ color: TEAM_COLORS[0].main, background: TEAM_COLORS[0].main }} />
+          <span className="size-4 rounded-full shadow-[0_0_20px_currentColor]" style={{ color: FACTIONS.aurora.main, background: FACTIONS.aurora.main }} />
           <Swords className="size-7 text-white/70" />
-          <span className="size-4 rounded-full shadow-[0_0_20px_currentColor]" style={{ color: TEAM_COLORS[1].main, background: TEAM_COLORS[1].main }} />
+          <span className="size-4 rounded-full shadow-[0_0_20px_currentColor]" style={{ color: FACTIONS.escarlate.main, background: FACTIONS.escarlate.main }} />
         </div>
         <h1 className="bg-gradient-to-b from-white to-sky-200 bg-clip-text text-5xl font-black tracking-tight text-transparent sm:text-6xl">Maré de Aço</h1>
         <p className="mt-3 max-w-md text-balance text-sm text-white/65 sm:text-base">
-          Estratégia em tempo real. Comande a <b className="text-sky-300">{TEAM_COLORS[0].name}</b>, colete cristais, erga sua base e derrote a{" "}
-          <b className="text-red-300">{TEAM_COLORS[1].name}</b>.
+          Estratégia em tempo real. Escolha sua facção, colete cristais, erga sua base e derrote o exército rival.
         </p>
 
-        <div className="mt-8 w-full max-w-sm">
+        <div className="mt-8 grid w-full gap-3 sm:grid-cols-2">
+          {(Object.keys(FACTIONS) as Faction[]).map((f) => {
+            const info = FACTIONS[f];
+            const active = faction === f;
+            return (
+              <button
+                key={f}
+                onClick={() => setFaction(f)}
+                aria-pressed={active}
+                className={cn(
+                  "rounded-2xl p-4 text-left ring-1 transition",
+                  active ? "bg-white/10 ring-2" : "bg-white/[0.03] ring-white/10 hover:bg-white/[0.07]",
+                )}
+                style={active ? { boxShadow: `0 0 0 2px ${info.main}, 0 12px 40px -12px ${info.main}` } : undefined}
+              >
+                <div className="mb-1.5 flex items-center gap-2">
+                  <span className="size-3 rounded-full" style={{ background: info.main }} />
+                  <span className="font-bold">{info.name}</span>
+                </div>
+                <p className="mb-2 text-xs text-white/60">{info.motto}</p>
+                <ul className="space-y-0.5 text-[11px] text-white/50">
+                  {info.traits.map((t) => (
+                    <li key={t}>• {t}</li>
+                  ))}
+                </ul>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="mt-6 w-full max-w-sm">
           <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-white/45">Dificuldade</p>
           <div className="grid grid-cols-3 gap-1.5 rounded-2xl bg-white/5 p-1.5 ring-1 ring-white/10">
             {(Object.keys(DIFFICULTY) as Difficulty[]).map((d) => (
@@ -43,8 +73,12 @@ export function StartScreen({ onStart }: { onStart: (d: Difficulty) => void }) {
             ))}
           </div>
           <button
-            onClick={() => onStart(diff)}
-            className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-b from-sky-400 to-sky-600 py-4 text-lg font-bold shadow-[0_10px_40px_-10px_rgba(56,189,248,0.7)] ring-1 ring-sky-300/50 transition hover:brightness-110 active:scale-[0.98]"
+            onClick={() => onStart(diff, faction)}
+            className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl py-4 text-lg font-bold ring-1 ring-white/25 transition hover:brightness-110 active:scale-[0.98]"
+            style={{
+              background: `linear-gradient(to bottom, ${FACTIONS[faction].main}, ${FACTIONS[faction].dark})`,
+              boxShadow: `0 10px 40px -10px ${FACTIONS[faction].main}`,
+            }}
           >
             <Play className="size-5 fill-current" /> Iniciar batalha
           </button>
@@ -62,9 +96,14 @@ export function StartScreen({ onStart }: { onStart: (d: Difficulty) => void }) {
               Usinas geram energia. A Refinaria traz um Coletor que busca cristais dourados e os transforma em créditos. Energia baixa deixa tudo lento e
               desliga torres e radar.
             </HelpCard>
+            <HelpCard title="Facções">
+              A Coalizão Aurora aposta em mobilidade e precisão (Vespa, Lumen, Morteiro, Colibri, Torre de Defesa). A Legião Escarlate aposta em
+              blindagem e fogo (Titã, Javali, Tempestade, Lança-chamas, Tufão, Torre Inferno). Construções básicas, Coletor, Fuzileiro, Lança-mísseis,
+              Drone e Torre Antiaérea são comuns às duas.
+            </HelpCard>
             <HelpCard title="Aeronaves">
-              O Heliporto (requer Radar) produz Drones Vigia e Helicópteros Colibri, que voam por cima de rios e árvores. Só Torres Antiaéreas,
-              Fuzileiros, Lança-mísseis, Batedores e Drones conseguem atingi-los — tanques e artilharia não.
+              O Heliporto (requer Radar) produz Drones e helicópteros, que voam por cima de rios e árvores. Só Torres Antiaéreas, Fuzileiros,
+              Lança-mísseis, Batedores, Javalis e Drones conseguem atingi-los — tanques, artilharia e torres terrestres não.
             </HelpCard>
             <HelpCard title="Mouse e teclado">
               Esquerdo seleciona (arraste para área, duplo clique pega o mesmo tipo). Direito move, ataca ou coleta. Roda: zoom. Setas ou arrastar com o
@@ -147,7 +186,7 @@ export function EndScreen({ hud, onRestart, onMenu }: { hud: HudSnapshot; onRest
           {win ? <Trophy className="size-8" /> : <Skull className="size-8" />}
         </div>
         <h2 className="text-3xl font-black">{win ? "Vitória!" : "Derrota"}</h2>
-        <p className="mt-1 text-sm text-white/60">{win ? "A Legião Escarlate foi varrida do mapa." : "Nossa última estrutura caiu. Reagrupe e tente de novo."}</p>
+        <p className="mt-1 text-sm text-white/60">{win ? `A ${hud.enemyName} foi varrida do mapa.` : "Nossa última estrutura caiu. Reagrupe e tente de novo."}</p>
         <dl className="mt-5 grid grid-cols-2 gap-2 text-left">
           {stats.map(([k, v]) => (
             <div key={k} className="rounded-xl bg-white/5 px-3 py-2 ring-1 ring-white/10">
