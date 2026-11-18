@@ -5,10 +5,61 @@ import { AIR_ALT, BUILDINGS, UNITS, type BuildingKind, type Team } from "../defs
 import type { Building, Entity, Game, GameEvent, Unit } from "../game";
 import { BIOMES, type Biome } from "../biomes";
 import { mulberry32, Terrain } from "../map";
+import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
+import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
+import { GTAOPass } from "three/examples/jsm/postprocessing/GTAOPass.js";
+import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
+import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
+import { SMAAPass } from "three/examples/jsm/postprocessing/SMAAPass.js";
+import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
+import { mergeVertices } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { ModelKit, type BuildingModel, type UnitModel } from "./models";
 import { ParticleSystem } from "./particles";
 
+// Qualidade gráfica: "max" liga oclusão de ambiente, brilho, antisserrilhado e luzes de explosão.
+export type Quality = "max" | "balanced" | "low";
+
+const QUALITY_KEY = "force-one:quality:v1";
+
+// Preferência salva; sem ela, máxima no computador e equilibrada no celular.
+export function loadQuality(): Quality {
+  try {
+    const q = window.localStorage.getItem(QUALITY_KEY);
+    if (q === "max" || q === "balanced" || q === "low") return q;
+  } catch {
+    // sem armazenamento
+  }
+  const coarse = window.matchMedia("(pointer: coarse)").matches;
+  return coarse || window.innerWidth < 900 ? "balanced" : "max";
+}
+
+export function saveQuality(q: Quality) {
+  try {
+    window.localStorage.setItem(QUALITY_KEY, q);
+  } catch {
+    // ignora
+  }
+}
+
 const SHROUD = new THREE.Color("#0a0e18");
+
+// Deforma uma forma lisa (copa, rocha) com ruído determinístico: contorno irregular e natural.
+function roughen(src: THREE.BufferGeometry, amount: number, seed: number, flat = false) {
+  const g = mergeVertices(src.index ? src.clone() : src.clone().toNonIndexed(), 1e-4);
+  const pos = g.attributes.position as THREE.BufferAttribute;
+  const v = new THREE.Vector3();
+  for (let i = 0; i < pos.count; i++) {
+    v.fromBufferAttribute(pos, i);
+    const h = Math.sin(v.x * 12.9898 + v.y * 78.233 + v.z * 37.719 + seed) * 43758.5453;
+    const n = (h - Math.floor(h)) * 2 - 1;
+    const len = v.length() || 1;
+    v.multiplyScalar(1 + (n * amount) / len);
+    pos.setXYZ(i, v.x, v.y, v.z);
+  }
+  const out = flat ? g.toNonIndexed() : g;
+  out.computeVertexNormals();
+  return out;
+}
 const VIEW_H = 15; // altura visível (em tiles) com zoom 1
 const ELEVATION = THREE.MathUtils.degToRad(52);
 const CAM_DIR = new THREE.Vector3(-Math.cos(ELEVATION) * Math.SQRT1_2, Math.sin(ELEVATION), Math.cos(ELEVATION) * Math.SQRT1_2);
@@ -22,6 +73,7 @@ interface UnitView {
   cargoBar: THREE.Mesh | null;
   barW: number;
   blob: THREE.Mesh;
+  info: { kind: string; x: number; z: number };
 }
 
 interface BuildingView {
@@ -32,6 +84,7 @@ interface BuildingView {
   fill: THREE.Mesh;
   barW: number;
   smoke: number;
+  info: { kind: string; x: number; z: number; tx: number; tz: number; w: number; h: number };
 }
 
 type View = UnitView | BuildingView;
@@ -62,7 +115,7 @@ export class GameRenderer {
   private fogData: Uint8Array<ArrayBuffer>;
   private fogCur: Float32Array;
   private fogTex: THREE.DataTexture;
-  private fogUniforms: { uFogTex: { value: THREE.Texture }; uMapSize: { value: THREE.Vector2 } };
+  private fogUniforms: { uFogTex: { value: THREE.Texture }; uMapSize: { value: THREE.Vector2 }; uShroud: { value: THREE.Vector3 } };
   private views = new Map<number, View>();
   private projViews = new Map<number, THREE.Object3D>();
   private sun: THREE.DirectionalLight;
@@ -102,17 +155,30 @@ export class GameRenderer {
   private blobGeo = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
   private blobMat: THREE.MeshBasicMaterial;
   private scorchTimer = 0;
+  private quality: Quality = "balanced";
+  private composer: EffectComposer | null = null;
+  private gtao: GTAOPass | null = null;
+  private bloom: UnrealBloomPass | null = null;
+  private smaa: SMAAPass | null = null;
+  private shroudUniform = { value: new THREE.Vector3(0.039, 0.055, 0.094) };
+  private boomLights: { light: THREE.PointLight; life: number; max: number; peak: number }[] = [];
+  private boomIdx = 0;
+  private wrecks: { obj: THREE.Object3D; t: number; kind: "vehicle" | "infantry" | "air"; smoke: number; tilt: number; x: number; z: number }[] = [];
+  private rubble: { obj: THREE.Object3D; tx: number; tz: number; w: number; h: number; t: number }[] = [];
+  private soldAt: { x: number; z: number; t: number }[] = [];
+  private charred = new THREE.MeshStandardMaterial({ color: "#262220", roughness: 0.95, metalness: 0.2 });
 
-  constructor(canvas: HTMLCanvasElement, game: Game, opts: { lowPower: boolean }) {
+  constructor(canvas: HTMLCanvasElement, game: Game, opts: { quality: Quality }) {
     this.game = game;
     this.biome = BIOMES[game.map.biome];
+    this.quality = opts.quality;
     const { w, h } = game.map;
-    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: !opts.lowPower, powerPreference: "high-performance" });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, opts.lowPower ? 1.5 : 2));
+    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: opts.quality !== "low", powerPreference: "high-performance", stencil: false });
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, opts.quality === "low" ? 1 : opts.quality === "balanced" ? 1.6 : 2));
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = this.biome.exposure * 1.04;
+    this.renderer.toneMappingExposure = this.biome.exposure * 1.02;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.scene.background = SHROUD;
 
@@ -127,7 +193,7 @@ export class GameRenderer {
     this.fogTex.wrapS = THREE.ClampToEdgeWrapping;
     this.fogTex.wrapT = THREE.ClampToEdgeWrapping;
     this.fogTex.needsUpdate = true;
-    this.fogUniforms = { uFogTex: { value: this.fogTex }, uMapSize: { value: new THREE.Vector2(w, h) } };
+    this.fogUniforms = { uFogTex: { value: this.fogTex }, uMapSize: { value: new THREE.Vector2(w, h) }, uShroud: this.shroudUniform };
 
     const patch = (m: THREE.Material) => this.fogify(m);
     // sombra macia sob as unidades
@@ -149,18 +215,28 @@ export class GameRenderer {
       m.depthWrite = false;
     }, colorsOf);
 
-    // luzes
-    // luz clara de dia ensolarado, com sombras suaves e azuladas (visual de brinquedo)
-    const hemi = new THREE.HemisphereLight(this.biome.hemi[0], this.biome.hemi[1], this.biome.hemi[2] * 1.12);
+    // luzes: sol forte, céu suave e iluminação de ambiente (reflexos realistas nos metais)
+    const hemi = new THREE.HemisphereLight(this.biome.hemi[0], this.biome.hemi[1], this.biome.hemi[2] * 0.7);
     this.scene.add(hemi);
-    this.sun = new THREE.DirectionalLight(this.biome.sun[0], this.biome.sun[1] * 1.15);
+    this.sun = new THREE.DirectionalLight(this.biome.sun[0], this.biome.sun[1] * 1.35);
     this.sun.castShadow = true;
-    const sm = opts.lowPower ? 1024 : 2048;
+    const sm = opts.quality === "max" ? 4096 : opts.quality === "balanced" ? 2048 : 1024;
     this.sun.shadow.mapSize.set(sm, sm);
-    this.sun.shadow.bias = -0.0005;
-    this.sun.shadow.normalBias = 0.02;
-    this.sun.shadow.radius = 4;
-    this.sun.shadow.intensity = 0.78;
+    this.sun.shadow.bias = -0.0004;
+    this.sun.shadow.normalBias = 0.015;
+    this.sun.shadow.radius = 2.5;
+    this.sun.shadow.intensity = 0.92;
+    const pmrem = new THREE.PMREMGenerator(this.renderer);
+    this.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+    this.scene.environmentIntensity = 0.55;
+    pmrem.dispose();
+    // luzes das explosões (número fixo, para não recompilar sombreadores)
+    const nLights = opts.quality === "max" ? 6 : opts.quality === "balanced" ? 2 : 0;
+    for (let i = 0; i < nLights; i++) {
+      const light = new THREE.PointLight("#ffa04a", 0, 4.5, 1.6);
+      this.scene.add(light);
+      this.boomLights.push({ light, life: 0, max: 1, peak: 0 });
+    }
     this.scene.add(this.sun);
     this.scene.add(this.sun.target);
 
@@ -173,7 +249,7 @@ export class GameRenderer {
     this.buildOre();
 
     this.fire = new ParticleSystem(2500, true);
-    this.smoke = new ParticleSystem(2500, false);
+    this.smoke = new ParticleSystem(3000, false, this.kit.tex.smokeSprite());
     this.scene.add(this.smoke.points);
     this.scene.add(this.fire.points);
 
@@ -221,6 +297,7 @@ export class GameRenderer {
     m.onBeforeCompile = (shader) => {
       shader.uniforms.uFogTex = this.fogUniforms.uFogTex;
       shader.uniforms.uMapSize = this.fogUniforms.uMapSize;
+      shader.uniforms.uShroud = this.fogUniforms.uShroud;
       shader.vertexShader =
         "varying vec2 vFogXZ;\n" +
         shader.vertexShader.replace(
@@ -234,7 +311,7 @@ export class GameRenderer {
           vFogXZ = fogWp.xz;`,
         );
       shader.fragmentShader =
-        "uniform sampler2D uFogTex;\nuniform vec2 uMapSize;\nvarying vec2 vFogXZ;\n" +
+        "uniform sampler2D uFogTex;\nuniform vec2 uMapSize;\nuniform vec3 uShroud;\nvarying vec2 vFogXZ;\n" +
         shader.fragmentShader.replace(
           "#include <dithering_fragment>",
           `#include <dithering_fragment>
@@ -242,10 +319,10 @@ export class GameRenderer {
           vec2 inMap = step(vec2(0.0), vFogXZ) * step(vFogXZ, uMapSize);
           fv *= inMap.x * inMap.y;
           vec3 lit = gl_FragColor.rgb * mix(0.45, 1.0, clamp(fv * 2.0 - 1.0, 0.0, 1.0));
-          gl_FragColor.rgb = mix(vec3(0.039, 0.055, 0.094), lit, smoothstep(0.02, 0.5, fv));`,
+          gl_FragColor.rgb = mix(uShroud, lit, smoothstep(0.02, 0.5, fv));`,
         );
     };
-    m.customProgramCacheKey = () => "fog-v1";
+    m.customProgramCacheKey = () => "fog-v2";
   }
 
   updateFog(dt: number, instant = false) {
@@ -446,8 +523,23 @@ export class GameRenderer {
       pos.setY(i, y);
     }
     geo.computeVertexNormals();
-    const mat = new THREE.MeshStandardMaterial({ map: this.terrainTex, roughness: 0.95, metalness: 0 });
+    const mat = new THREE.MeshStandardMaterial({ map: this.terrainTex, roughness: 0.96, metalness: 0 });
     this.fogify(mat);
+    // grão fino repetido: dá textura de terra/areia de perto
+    const detail = this.kit.tex.grain(53);
+    const fogCompile = mat.onBeforeCompile;
+    mat.onBeforeCompile = (sh, r) => {
+      fogCompile(sh, r);
+      sh.uniforms.uDetail = { value: detail };
+      sh.fragmentShader = "uniform sampler2D uDetail;\n" + sh.fragmentShader.replace(
+        "#include <map_fragment>",
+        `#include <map_fragment>
+        float dt1 = texture2D(uDetail, vMapUv * 150.0).r;
+        float dt2 = texture2D(uDetail, vMapUv * 37.0).r;
+        diffuseColor.rgb *= 0.72 + 0.34 * dt1 + 0.16 * dt2;`,
+      );
+    };
+    mat.customProgramCacheKey = () => "fog-terrain-v2";
     const mesh = new THREE.Mesh(geo, mat);
     mesh.receiveShadow = true;
     this.scene.add(mesh);
@@ -591,15 +683,15 @@ export class GameRenderer {
     if (this.biome.trees !== "temperate") {
       this.buildBiomeTrees(trees, rnd);
     } else {
-      const trunkMat = new THREE.MeshStandardMaterial({ color: "#8a5a3b", roughness: 0.9 });
-      const crownMat = new THREE.MeshStandardMaterial({ color: "#ffffff", roughness: 0.75 });
+      const trunkMat = new THREE.MeshStandardMaterial({ color: "#5a4632", roughness: 0.95 });
+      const crownMat = new THREE.MeshStandardMaterial({ color: "#ffffff", roughness: 0.92 });
       this.fogify(trunkMat);
       this.fogify(crownMat);
       const trunks = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.06, 0.09, 0.4, 8), trunkMat, trees.length);
       const round = trees.filter((t) => !t.pine);
       const pines = trees.filter((t) => t.pine);
-      const crowns = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(0.34, 2), crownMat, round.length * 2);
-      const pineGeo = new THREE.ConeGeometry(0.3, 0.7, 10);
+      const crowns = new THREE.InstancedMesh(roughen(new THREE.IcosahedronGeometry(0.34, 3), 0.07, 3), crownMat, round.length * 2);
+      const pineGeo = roughen(new THREE.ConeGeometry(0.3, 0.7, 14, 4), 0.045, 7);
       const pineMesh = new THREE.InstancedMesh(pineGeo, crownMat, pines.length * 2);
       trees.forEach((t, i) => {
         dummy.position.set(t.x, 0.2 * t.s, t.z);
@@ -613,13 +705,13 @@ export class GameRenderer {
         dummy.scale.set(t.s, t.s * 0.95, t.s);
         dummy.updateMatrix();
         crowns.setMatrixAt(i * 2, dummy.matrix);
-        col.setHSL(0.27 + rnd() * 0.08, 0.5, 0.36 + rnd() * 0.1);
+        col.setHSL(0.21 + rnd() * 0.07, 0.42, 0.2 + rnd() * 0.07);
         crowns.setColorAt(i * 2, col);
         dummy.position.set(t.x + 0.08, 0.82 * t.s, t.z - 0.05);
         dummy.scale.setScalar(t.s * 0.62);
         dummy.updateMatrix();
         crowns.setMatrixAt(i * 2 + 1, dummy.matrix);
-        col.offsetHSL(0, 0, 0.07);
+        col.offsetHSL(0, 0, 0.04);
         crowns.setColorAt(i * 2 + 1, col);
       });
       pines.forEach((t, i) => {
@@ -627,13 +719,13 @@ export class GameRenderer {
         dummy.scale.setScalar(t.s);
         dummy.updateMatrix();
         pineMesh.setMatrixAt(i * 2, dummy.matrix);
-        col.setHSL(0.36 + rnd() * 0.05, 0.45, 0.3 + rnd() * 0.06);
+        col.setHSL(0.33 + rnd() * 0.05, 0.38, 0.17 + rnd() * 0.05);
         pineMesh.setColorAt(i * 2, col);
         dummy.position.set(t.x, 0.92 * t.s, t.z);
         dummy.scale.setScalar(t.s * 0.7);
         dummy.updateMatrix();
         pineMesh.setMatrixAt(i * 2 + 1, dummy.matrix);
-        col.offsetHSL(0, 0, 0.06);
+        col.offsetHSL(0, 0, 0.03);
         pineMesh.setColorAt(i * 2 + 1, col);
       });
       for (const m of [trunks, crowns, pineMesh]) {
@@ -644,9 +736,9 @@ export class GameRenderer {
       }
     }
 
-    const rockMat = new THREE.MeshStandardMaterial({ color: "#ffffff", roughness: 0.85, flatShading: false });
+    const rockMat = new THREE.MeshStandardMaterial({ color: "#ffffff", roughness: 0.93, map: this.kit.tex.concrete("#b8b2a6", 61, false) });
     this.fogify(rockMat);
-    const rockMesh = new THREE.InstancedMesh(new THREE.DodecahedronGeometry(0.5, 1), rockMat, rocks.length);
+    const rockMesh = new THREE.InstancedMesh(roughen(new THREE.DodecahedronGeometry(0.5, 1), 0.12, 11, true), rockMat, rocks.length);
     rocks.forEach((r, i) => {
       dummy.position.set(r.x, 0.12 + r.s * 0.2, r.z);
       dummy.scale.set(r.s * (0.9 + rnd() * 0.5), r.s * (0.6 + rnd() * 0.4), r.s * (0.9 + rnd() * 0.5));
@@ -712,15 +804,27 @@ export class GameRenderer {
           // palmeira: tronco inclinado e folhas caídas em leque
           const tilt = (rnd() - 0.5) * 0.35;
           const tz = (rnd() - 0.5) * 0.35;
-          add("palmTrunk", () => new THREE.CylinderGeometry(0.035, 0.06, 1, 7), { p: [t.x + tilt * 0.45 * s, 0.5 * s, t.z + tz * 0.45 * s], r: [tz, 0, -tilt], s: [s, s, s], c: "#a07a4e" });
+          add("palmTrunk", () => new THREE.CylinderGeometry(0.03, 0.055, 1, 9, 6), { p: [t.x + tilt * 0.45 * s, 0.5 * s, t.z + tz * 0.45 * s], r: [tz, 0, -tilt], s: [s, s, s], c: "#7a6248" });
           const top: [number, number] = [t.x + tilt * 0.9 * s, t.z + tz * 0.9 * s];
           for (let k = 0; k < 6; k++) {
             const a = (k / 6) * Math.PI * 2 + rnd();
-            add("palmLeaf", () => new THREE.SphereGeometry(1, 10, 6), {
-              p: [top[0] + Math.cos(a) * 0.24 * s, 0.97 * s, top[1] + Math.sin(a) * 0.24 * s],
-              r: [0, -a, -0.4],
-              s: [0.32 * s, 0.03 * s, 0.09 * s],
-              c: hsl(0.27 + rnd() * 0.06, 0.55, 0.32 + rnd() * 0.08),
+            add("palmLeaf", () => {
+              // folha arqueada: base na origem, cai em curva
+              const g = new THREE.PlaneGeometry(0.62, 0.2, 8, 1);
+              g.translate(0.31, 0, 0);
+              g.rotateX(-Math.PI / 2);
+              const pa = g.attributes.position as THREE.BufferAttribute;
+              for (let i = 0; i < pa.count; i++) {
+                const x = pa.getX(i);
+                pa.setY(i, x * 0.35 - x * x * 1.1);
+              }
+              g.computeVertexNormals();
+              return g;
+            }, {
+              p: [top[0], 0.98 * s, top[1]],
+              r: [0, -a, (rnd() - 0.5) * 0.3],
+              s: [s, s, s],
+              c: hsl(0.22 + rnd() * 0.05, 0.4, 0.3 + rnd() * 0.08),
             });
           }
         } else {
@@ -762,11 +866,13 @@ export class GameRenderer {
         }
       }
     }
-    const mat = new THREE.MeshStandardMaterial({ color: "#ffffff", roughness: 0.8 });
+    const mat = new THREE.MeshStandardMaterial({ color: "#ffffff", roughness: 0.85 });
     this.fogify(mat);
+    const frondMat = new THREE.MeshStandardMaterial({ color: "#ffffff", map: this.kit.tex.frond(), alphaTest: 0.45, side: THREE.DoubleSide, roughness: 0.8 });
+    this.fogify(frondMat);
     const dummy = new THREE.Object3D();
-    for (const g of groups.values()) {
-      const m = new THREE.InstancedMesh(g.geo, mat, g.items.length);
+    for (const [key, g] of groups) {
+      const m = new THREE.InstancedMesh(g.geo, key === "palmLeaf" ? frondMat : mat, g.items.length);
       g.items.forEach((it, i) => {
         dummy.position.set(...it.p);
         dummy.rotation.set(...(it.r ?? [0, rnd() * 6, 0]));
@@ -814,7 +920,7 @@ export class GameRenderer {
   private buildOre() {
     const { oreMax } = this.game.map;
     for (let i = 0; i < oreMax.length; i++) if (oreMax[i] > 0) this.oreTiles.push(i);
-    const mat = this.kit.mat("oreGem", "#ffd75e", { roughness: 0.25, metalness: 0.2, emissive: "#c98a00", emissiveIntensity: 0.35 });
+    const mat = this.kit.mat("oreGem", "#e2b544", { roughness: 0.28, metalness: 0.45, emissive: "#a06a00", emissiveIntensity: 0.18 });
     this.oreMesh = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(0.11, 0), mat, this.oreTiles.length * 3);
     this.oreMesh.castShadow = true;
     this.oreMesh.receiveShadow = true;
@@ -822,7 +928,7 @@ export class GameRenderer {
     const rnd = mulberry32(42);
     this.oreTiles.forEach((_, j) => {
       for (let k = 0; k < 3; k++) {
-        col.setHSL(0.11 + rnd() * 0.05, 0.85, 0.55 + rnd() * 0.1);
+        col.setHSL(0.1 + rnd() * 0.04, 0.6, 0.42 + rnd() * 0.1);
         this.oreMesh!.setColorAt(j * 3 + k, col);
       }
     });
@@ -874,7 +980,56 @@ export class GameRenderer {
     this.width = Math.max(1, width);
     this.height = Math.max(1, height);
     this.renderer.setSize(this.width, this.height, false);
+    this.composer?.setSize(this.width, this.height);
     this.updateCamera();
+  }
+
+  // Liga/desliga o pós-processamento e ajusta resolução e sombras.
+  setQuality(q: Quality) {
+    this.quality = q;
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, q === "low" ? 1 : q === "balanced" ? 1.6 : 2));
+    const sm = q === "max" ? 4096 : q === "balanced" ? 2048 : 1024;
+    if (this.sun.shadow.mapSize.x !== sm) {
+      this.sun.shadow.mapSize.set(sm, sm);
+      this.sun.shadow.map?.dispose();
+      this.sun.shadow.map = null;
+    }
+    if (q === "max" && !this.composer) this.buildComposer();
+    if (q !== "max" && this.composer) {
+      this.composer.dispose();
+      this.composer = null;
+      this.gtao = null;
+      this.bloom = null;
+      this.smaa = null;
+    }
+    // a cor da névoa entra antes (composer, linear) ou depois (direto, sRGB) da conversão de cor
+    const c = new THREE.Color("#0a0e18");
+    if (this.composer) this.shroudUniform.value.set(c.r, c.g, c.b);
+    else this.shroudUniform.value.set(0.039, 0.055, 0.094);
+    this.renderer.setSize(this.width, this.height, false);
+    this.composer?.setSize(this.width, this.height);
+  }
+
+  private buildComposer() {
+    const comp = new EffectComposer(this.renderer);
+    comp.setPixelRatio(this.renderer.getPixelRatio());
+    comp.addPass(new RenderPass(this.scene, this.camera));
+    const gtao = new GTAOPass(this.scene, this.camera, this.width, this.height);
+    gtao.output = GTAOPass.OUTPUT.Default;
+    gtao.blendIntensity = 0.7;
+    gtao.updateGtaoMaterial({ radius: 0.22, distanceExponent: 1.6, thickness: 0.8, scale: 1.0, samples: 12 });
+    gtao.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 6, rings: 2, samples: 12 });
+    comp.addPass(gtao);
+    // só o que brilha de verdade (fogo, explosões, lâmpadas) passa do limiar
+    const bloom = new UnrealBloomPass(new THREE.Vector2(this.width, this.height), 0.6, 0.45, 1.6);
+    comp.addPass(bloom);
+    comp.addPass(new OutputPass());
+    const smaa = new SMAAPass(this.width * this.renderer.getPixelRatio(), this.height * this.renderer.getPixelRatio());
+    comp.addPass(smaa);
+    this.composer = comp;
+    this.gtao = gtao;
+    this.bloom = bloom;
+    this.smaa = smaa;
   }
 
   get viewHeight() {
@@ -1064,7 +1219,7 @@ export class GameRenderer {
       cargoBar.renderOrder = 11;
       bar.add(cargoBar);
     }
-    return { kind: "unit", model, ring, bar, fill, cargoBar, barW, blob };
+    return { kind: "unit", model, ring, bar, fill, cargoBar, barW, blob, info: { kind: u.kind, x: u.x, z: u.z } };
   }
 
   private createBuildingView(b: Building): BuildingView {
@@ -1073,6 +1228,14 @@ export class GameRenderer {
     model.root.position.set(b.tx + b.w / 2, 0, b.tz + b.h / 2);
     this.scene.add(model.root);
     this.padQueue.push({ tx: b.tx, tz: b.tz, w: b.w, h: b.h });
+    // nova construção sobre ruínas: tira as ruínas
+    for (let i = this.rubble.length - 1; i >= 0; i--) {
+      const r = this.rubble[i];
+      if (r.tx < b.tx + b.w && r.tx + r.w > b.tx && r.tz < b.tz + b.h && r.tz + r.h > b.tz) {
+        this.scene.remove(r.obj);
+        this.rubble.splice(i, 1);
+      }
+    }
     const key = `b${b.w}x${b.h}`;
     const ring = new THREE.Mesh(
       this.ringFor(key, () => {
@@ -1104,11 +1267,19 @@ export class GameRenderer {
     model.root.add(ring);
     const barW = Math.max(0.7, b.w * 0.75);
     const { bar, fill } = this.makeBar(barW);
-    return { kind: "building", model, ring, bar, fill, barW, smoke: 0 };
+    return { kind: "building", model, ring, bar, fill, barW, smoke: 0, info: { kind: b.kind, x: b.tx + b.w / 2, z: b.tz + b.h / 2, tx: b.tx, tz: b.tz, w: b.w, h: b.h } };
   }
 
-  private disposeView(v: View) {
-    this.scene.remove(v.model.root);
+  private disposeView(v: View, e?: { kind: string; x: number; z: number; tx?: number; tz?: number; w?: number; h?: number }) {
+    let kept = false;
+    if (e && v.kind === "unit") kept = this.makeWreck(v, e);
+    if (e && v.kind === "building" && e.tx !== undefined && v.model.root.visible) {
+      const cx = e.tx + (e.w ?? 1) / 2;
+      const cz = (e.tz ?? 0) + (e.h ?? 1) / 2;
+      const sold = this.soldAt.some((s) => Math.abs(s.x - cx) < 0.1 && Math.abs(s.z - cz) < 0.1);
+      if (!sold) this.makeRubble({ tx: e.tx, tz: e.tz ?? 0, w: e.w ?? 1, h: e.h ?? 1 });
+    }
+    if (!kept) this.scene.remove(v.model.root);
     this.scene.remove(v.bar);
     (v.fill.material as THREE.Material).dispose();
     if (v.kind === "unit" && v.cargoBar) (v.cargoBar.material as THREE.Material).dispose();
@@ -1148,6 +1319,8 @@ export class GameRenderer {
       const m = v.model;
       m.root.visible = visible;
       m.root.position.set(u.x, 0, u.z);
+      v.info.x = u.x;
+      v.info.z = u.z;
       m.body.rotation.y = -u.angle;
       const d = UNITS[u.kind];
       let barY = m.height + 0.18;
@@ -1162,7 +1335,7 @@ export class GameRenderer {
         m.body.rotation.z += (tilt - m.body.rotation.z) * Math.min(1, dt * 4);
         const spin = dt * (u.kind === "drone" ? 45 : 30);
         m.rotors.forEach((r, i) => {
-          if (u.kind === "heli" && i === 0) r.rotation.z += spin;
+          if ((u.kind === "heli" || u.kind === "tufao") && i === 0) r.rotation.z += spin;
           else r.rotation.y += spin;
         });
         barY = alt + m.height + 0.2;
@@ -1254,7 +1427,7 @@ export class GameRenderer {
     }
     for (const [id, v] of this.views) {
       if (!seen.has(id)) {
-        this.disposeView(v);
+        this.disposeView(v, v.info);
         this.views.delete(id);
       }
     }
@@ -1322,6 +1495,7 @@ export class GameRenderer {
   // ------------------------------------------------------------ efeitos
 
   explosion(x: number, z: number, size: number, y = 0.2) {
+    this.flash(x, z, 3 + size * 9, 0.25 + size * 0.25);
     const nFire = Math.round(8 + size * 14);
     for (let i = 0; i < nFire; i++) {
       const a = Math.random() * Math.PI * 2;
@@ -1380,6 +1554,7 @@ export class GameRenderer {
   }
 
   private muzzle(x: number, y: number, z: number, tx: number, tz: number, big: boolean) {
+    if (big) this.flash(x, z, 2.2, 0.12);
     this.fire.emit({ x, y, z, life: 0.08, size0: big ? 0.45 : 0.22, size1: 0.1, color: "#fff4b8", color1: "#ffa53a" });
     if (big) {
       const a = Math.atan2(tz - z, tx - x);
@@ -1474,23 +1649,40 @@ export class GameRenderer {
       const w = (p.w + m * 2) * 16;
       const h = (p.h + m * 2) * 16;
       ctx.save();
-      ctx.fillStyle = "rgba(70,70,64,0.22)";
+      // terra batida e concreto gasto, sem cara de pintura nova
+      const grad = ctx.createRadialGradient(x + w / 2, z + h / 2, Math.min(w, h) * 0.3, x + w / 2, z + h / 2, Math.max(w, h) * 0.75);
+      grad.addColorStop(0, "rgba(96,88,74,0.35)");
+      grad.addColorStop(1, "rgba(96,88,74,0)");
+      ctx.fillStyle = grad;
+      ctx.fillRect(x - 12, z - 12, w + 24, h + 24);
+      ctx.fillStyle = "rgba(150,146,136,0.92)";
       ctx.beginPath();
-      ctx.roundRect(x - 3, z - 2, w + 6, h + 6, 10);
+      ctx.roundRect(x, z, w, h, 3);
       ctx.fill();
-      ctx.fillStyle = "#d9d5c8";
-      ctx.beginPath();
-      ctx.roundRect(x, z, w, h, 8);
-      ctx.fill();
-      ctx.strokeStyle = "rgba(120,114,100,0.55)";
-      ctx.lineWidth = 2;
-      ctx.stroke();
-      ctx.strokeStyle = "rgba(240,190,40,0.85)";
-      ctx.lineWidth = 2.5;
-      ctx.setLineDash([7, 6]);
-      ctx.beginPath();
-      ctx.roundRect(x + 4, z + 4, w - 8, h - 8, 5);
-      ctx.stroke();
+      ctx.strokeStyle = "rgba(60,56,50,0.4)";
+      ctx.lineWidth = 1;
+      for (let gx = x + 16; gx < x + w; gx += 16) {
+        ctx.beginPath();
+        ctx.moveTo(gx, z);
+        ctx.lineTo(gx, z + h);
+        ctx.stroke();
+      }
+      for (let gz = z + 16; gz < z + h; gz += 16) {
+        ctx.beginPath();
+        ctx.moveTo(x, gz);
+        ctx.lineTo(x + w, gz);
+        ctx.stroke();
+      }
+      // manchas de óleo e desgaste
+      for (let k = 0; k < 6; k++) {
+        const ox = x + Math.random() * w;
+        const oz = z + Math.random() * h;
+        const sg = ctx.createRadialGradient(ox, oz, 0, ox, oz, 6 + Math.random() * 10);
+        sg.addColorStop(0, "rgba(40,36,30,0.3)");
+        sg.addColorStop(1, "rgba(40,36,30,0)");
+        ctx.fillStyle = sg;
+        ctx.fillRect(ox - 16, oz - 16, 32, 32);
+      }
       ctx.restore();
     }
     this.padQueue = [];
@@ -1585,6 +1777,8 @@ export class GameRenderer {
           break;
         }
         case "sold":
+          this.soldAt.push({ x: e.x, z: e.z, t: this.clock });
+          this.soldAt = this.soldAt.filter((s2) => this.clock - s2.t < 3);
           for (let i = 0; i < 20; i++)
             this.smoke.emit({ x: e.x + (Math.random() - 0.5) * e.w, y: 0.2, z: e.z + (Math.random() - 0.5) * e.h, vy: 0.6, life: 1.2, size0: 0.3, size1: 0.8, color: "#e2d6b8", alpha: 0.5 });
           break;
@@ -1756,8 +1950,132 @@ export class GameRenderer {
     const pxPerUnit = (this.renderer.getPixelRatio() * this.height) / this.viewHeight;
     this.fire.update(dt, pxPerUnit);
     this.smoke.update(dt, pxPerUnit);
-    this.renderer.render(this.scene, this.camera);
+    this.updateBoomLights(dt);
+    this.updateWrecks(dt);
+    if (!this.composer && this.quality === "max" && this.width > 1) this.setQuality("max");
+    if (this.composer) this.composer.render(dt);
+    else this.renderer.render(this.scene, this.camera);
   }
+
+  // ------------------------------------------------------------ luz de explosões, destroços e ruínas
+
+  private flash(x: number, z: number, power: number, life = 0.35) {
+    if (!this.boomLights.length || !this.game.isVisible(0, x, z)) return;
+    const b = this.boomLights[this.boomIdx++ % this.boomLights.length];
+    b.light.position.set(x, 0.7, z);
+    b.peak = power;
+    b.life = life;
+    b.max = life;
+    b.light.intensity = power;
+  }
+
+  private updateBoomLights(dt: number) {
+    for (const b of this.boomLights) {
+      if (b.life <= 0) {
+        b.light.intensity = 0;
+        continue;
+      }
+      b.life -= dt;
+      const k = Math.max(0, b.life / b.max);
+      b.light.intensity = b.peak * k * k;
+    }
+  }
+
+  // Veículos destruídos viram carcaças queimadas que fumegam; soldados caem; ambos somem depois.
+  private makeWreck(v: UnitView, u: { kind: string; x: number; z: number }) {
+    const d = UNITS[u.kind as keyof typeof UNITS];
+    const root = v.model.root;
+    root.remove(v.ring);
+    if (!root.visible) return false;
+    if (d.infantry) {
+      this.wrecks.push({ obj: root, t: 0, kind: "infantry", smoke: 0, tilt: Math.random() < 0.5 ? 1 : -1, x: u.x, z: u.z });
+      return true;
+    }
+    if (d.air) return false;
+    root.traverse((o) => {
+      if ((o as THREE.Mesh).isMesh && o !== v.blob) (o as THREE.Mesh).material = this.charred;
+    });
+    if (v.model.turret) v.model.turret.rotation.y += (Math.random() - 0.5) * 1.2;
+    this.wrecks.push({ obj: root, t: 0, kind: "vehicle", smoke: 0, tilt: 0, x: u.x, z: u.z });
+    return true;
+  }
+
+  private updateWrecks(dt: number) {
+    for (let i = this.wrecks.length - 1; i >= 0; i--) {
+      const w = this.wrecks[i];
+      w.t += dt;
+      if (w.kind === "infantry") {
+        const k = Math.min(1, w.t / 0.45);
+        w.obj.rotation.x = w.tilt * k * k * 1.45;
+        w.obj.position.y = k * 0.03;
+        if (w.t > 5) w.obj.position.y = -(w.t - 5) * 0.15;
+        if (w.t > 6.5) {
+          this.scene.remove(w.obj);
+          this.wrecks.splice(i, 1);
+        }
+        continue;
+      }
+      // carcaça: fogo no começo, depois só fumaça; afunda e some após 30 s
+      w.smoke -= dt;
+      if (w.smoke <= 0 && this.game.isVisible(0, w.x, w.z)) {
+        w.smoke = w.t < 8 ? 0.12 : 0.4;
+        this.smoke.emit({ x: w.x + (Math.random() - 0.5) * 0.2, y: 0.35, z: w.z + (Math.random() - 0.5) * 0.2, vx: 0.12, vy: 0.55, vz: -0.05, life: 3.2, size0: 0.3, size1: 1.3, color: "#2a2826", color1: "#7a7672", alpha: w.t < 15 ? 0.65 : 0.35 });
+        if (w.t < 8) this.fire.emit({ x: w.x + (Math.random() - 0.5) * 0.25, y: 0.3, z: w.z + (Math.random() - 0.5) * 0.25, vy: 0.5, life: 0.5, size0: 0.28, size1: 0.06, color: "#ffcf70", color1: "#ff4510", alpha: 0.85 });
+      }
+      if (w.t > 26) w.obj.position.y = -(w.t - 26) * 0.08;
+      if (w.t > 30) {
+        this.scene.remove(w.obj);
+        this.wrecks.splice(i, 1);
+      }
+    }
+  }
+
+  // Ruínas de concreto e ferragens no lugar da construção destruída.
+  private makeRubble(b: { tx: number; tz: number; w: number; h: number }) {
+    const g = new THREE.Group();
+    const rnd = mulberry32(b.tx * 97 + b.tz * 13);
+    const geos: THREE.BufferGeometry[] = [];
+    const n = Math.round(b.w * b.h * 7);
+    const m = new THREE.Matrix4();
+    const q = new THREE.Quaternion();
+    for (let i = 0; i < n; i++) {
+      const s = 0.06 + rnd() * 0.14;
+      const geo = (rnd() < 0.7 ? new THREE.DodecahedronGeometry(s, 0) : new THREE.BoxGeometry(s * 2.2, s * 0.6, s)).toNonIndexed();
+      q.setFromEuler(new THREE.Euler(rnd() * 3, rnd() * 3, rnd() * 3));
+      m.compose(new THREE.Vector3(b.tx + 0.15 + rnd() * (b.w - 0.3), s * 0.4, b.tz + 0.15 + rnd() * (b.h - 0.3)), q, new THREE.Vector3(1, 0.6 + rnd() * 0.5, 1));
+      geo.applyMatrix4(m);
+      geos.push(geo);
+    }
+    for (const geo of geos) for (const name of Object.keys(geo.attributes)) if (name !== "position" && name !== "normal") geo.deleteAttribute(name);
+    const merged = new THREE.BufferGeometry();
+    let count = 0;
+    for (const geo of geos) count += geo.attributes.position.count;
+    const pos = new Float32Array(count * 3);
+    const nor = new Float32Array(count * 3);
+    let o = 0;
+    for (const geo of geos) {
+      pos.set(geo.attributes.position.array as Float32Array, o * 3);
+      nor.set(geo.attributes.normal.array as Float32Array, o * 3);
+      o += geo.attributes.position.count;
+    }
+    merged.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+    merged.setAttribute("normal", new THREE.BufferAttribute(nor, 3));
+    const mesh = new THREE.Mesh(merged, this.rubbleMat);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    g.add(mesh);
+    this.scene.add(g);
+    this.rubble.push({ obj: g, tx: b.tx, tz: b.tz, w: b.w, h: b.h, t: 0 });
+  }
+
+  private get rubbleMat() {
+    if (!this._rubbleMat) {
+      this._rubbleMat = new THREE.MeshStandardMaterial({ color: "#5d5953", roughness: 0.95, metalness: 0.05 });
+      this.fogify(this._rubbleMat);
+    }
+    return this._rubbleMat;
+  }
+  private _rubbleMat: THREE.MeshStandardMaterial | null = null;
 
   dispose() {
     this.renderer.dispose();

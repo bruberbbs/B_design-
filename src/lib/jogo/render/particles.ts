@@ -22,12 +22,21 @@ const FRAG = /* glsl */ `
 varying vec3 vColor;
 varying float vAlpha;
 uniform float uSoft;
+#ifdef USE_TEX
+uniform sampler2D uTex;
+#endif
 void main() {
   vec2 c = gl_PointCoord - 0.5;
   float d = length(c);
   if (d > 0.5) discard;
   float a = smoothstep(0.5, uSoft, d) * vAlpha;
-  gl_FragColor = vec4(vColor, a);
+  vec3 col = vColor;
+#ifdef USE_TEX
+  vec4 t = texture2D(uTex, gl_PointCoord);
+  a = t.a * vAlpha;
+  col *= mix(0.75, 1.15, t.r);
+#endif
+  gl_FragColor = vec4(col, a);
 }
 `;
 
@@ -70,7 +79,7 @@ export class ParticleSystem {
   private tmpA = new THREE.Color();
   private tmpB = new THREE.Color();
 
-  constructor(max: number, additive: boolean) {
+  constructor(max: number, additive: boolean, tex?: THREE.Texture) {
     this.max = max;
     this.pos = new Float32Array(max * 3);
     this.vel = new Float32Array(max * 3);
@@ -96,7 +105,8 @@ export class ParticleSystem {
     this.material = new THREE.ShaderMaterial({
       vertexShader: VERT,
       fragmentShader: FRAG,
-      uniforms: { uScale: { value: 40 }, uSoft: { value: additive ? 0.0 : 0.2 } },
+      uniforms: { uScale: { value: 40 }, uSoft: { value: additive ? 0.0 : 0.2 }, uTex: { value: tex ?? null } },
+      defines: tex ? { USE_TEX: "" } : {},
       transparent: true,
       depthWrite: false,
       blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending,

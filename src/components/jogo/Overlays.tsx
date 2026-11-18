@@ -221,7 +221,7 @@ export function StartScreen({ onStart, onHost, onJoin }: StartProps) {
             </HelpCard>
             <HelpCard title="Defesa automática">
               Tropas atacadas revidam sozinhas e chamam as companheiras por perto. Em movimento normal, elas param para lutar e depois seguem até o
-              destino. Use "Mover" quando quiser passar sem parar para lutar.
+              destino. Use “Mover” quando quiser passar sem parar para lutar.
             </HelpCard>
             <HelpCard title="Mouse e teclado">
               Esquerdo seleciona (arraste no vazio para área, duplo clique pega o mesmo tipo). Com tropas selecionadas, clique no chão para mover e
@@ -251,6 +251,8 @@ function HelpCard({ title, children }: { title: string; children: React.ReactNod
 interface PauseProps {
   speed: number;
   online?: boolean;
+  quality: "max" | "balanced" | "low";
+  onQuality: (q: "max" | "balanced" | "low") => void;
   sound: boolean;
   music: boolean;
   onSpeed: (s: number) => void;
@@ -261,7 +263,7 @@ interface PauseProps {
   onQuit: () => void;
 }
 
-export function PauseMenu({ speed, online, sound, music, onSpeed, onSound, onMusic, onResume, onRestart, onQuit }: PauseProps) {
+export function PauseMenu({ speed, online, quality, onQuality, sound, music, onSpeed, onSound, onMusic, onResume, onRestart, onQuit }: PauseProps) {
   return (
     <div className="fixed inset-0 z-20 grid place-items-center bg-black/55 p-4 backdrop-blur-sm" onClick={onResume}>
       <div className="w-full max-w-xs rounded-3xl bg-[#111a2e] p-5 shadow-2xl ring-1 ring-white/10" onClick={(e) => e.stopPropagation()}>
@@ -282,6 +284,25 @@ export function PauseMenu({ speed, online, sound, music, onSpeed, onSound, onMus
             </div>
           </>
         )}
+        <p className="mb-1.5 text-xs font-semibold uppercase tracking-widest text-white/45">Gráficos</p>
+        <div className="mb-3 grid grid-cols-3 gap-1.5 rounded-2xl bg-black/30 p-1">
+          {(
+            [
+              ["max", "Máxima"],
+              ["balanced", "Equilibrada"],
+              ["low", "Leve"],
+            ] as const
+          ).map(([q, label]) => (
+            <button
+              key={q}
+              onClick={() => onQuality(q)}
+              aria-pressed={quality === q}
+              className={cn("rounded-xl py-2 text-xs font-semibold", quality === q ? "bg-white text-[#0a0e18]" : "text-white/70")}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
         <button onClick={onSound} className="mb-2 flex w-full items-center justify-center gap-2 rounded-2xl bg-white/8 py-2.5 text-sm font-semibold ring-1 ring-white/10 hover:bg-white/15">
           {sound ? <Volume2 className="size-4" /> : <VolumeX className="size-4" />} Efeitos {sound ? "ligados" : "desligados"}
         </button>

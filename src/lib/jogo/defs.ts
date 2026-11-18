@@ -534,22 +534,31 @@ export interface FactionInfo {
   light: string;
   motto: string;
   traits: string[];
+  camo: string[]; // pintura dos veículos (base + manchas)
+  uniform: string[]; // farda dos soldados
+  structure: string; // cor da pintura das construções
 }
 
 export const FACTIONS: Record<Faction, FactionInfo> = {
   aurora: {
     name: "Coalizão Aurora",
-    main: "#3fb34a",
-    dark: "#257a2e",
-    light: "#9ee391",
+    main: "#2f6fe0",
+    dark: "#1c4294",
+    light: "#8fb6ff",
+    camo: ["#76805c", "#56603f", "#948e6a", "#3f4532"],
+    uniform: ["#6e7552", "#50573d", "#8c8866", "#383d2e"],
+    structure: "#a3a48e",
     motto: "Precisão, mobilidade e tecnologia.",
     traits: ["Tanque Vespa ágil e Batedor rápido", "Tanque Lumen com feixe de laser", "Morteiro de longo alcance", "Helicóptero Colibri antiblindagem"],
   },
   escarlate: {
     name: "Legião Escarlate",
-    main: "#e0413a",
-    dark: "#a1231f",
+    main: "#d23a30",
+    dark: "#8e1f19",
     light: "#ff9d8c",
+    camo: ["#b29a6c", "#8c7449", "#d0bd92", "#5e4c33"],
+    uniform: ["#a8916a", "#806a47", "#c9b48b", "#5a4932"],
+    structure: "#c4b08c",
     motto: "Força bruta, fogo e blindagem pesada.",
     traits: ["Tanque Titã já de início", "Lança-chamas e Torre Inferno", "Salvas do Lança-foguetes Tempestade", "Helicóptero Tufão anti-infantaria"],
   },

@@ -28,7 +28,7 @@ Ferramenta web para **estudo de viabilidade de lotes** em um mapa 3D: clique em 
 
 ## Jogo: Force One
 
-Em <http://localhost:3000/jogo> há também **Force One**, um jogo de **estratégia em tempo real** em 3D, com visual arredondado. Na tela inicial você escolhe sua facção — **Coalizão Aurora** (verde) ou **Legião Escarlate** (vermelha) — e joga **contra o computador** ou **em rede contra outro aparelho**.
+Em <http://localhost:3000/jogo> há também **Force One**, um jogo de **estratégia em tempo real** em 3D, com visual arredondado. Na tela inicial você escolhe sua facção — **Coalizão Aurora** (azul) ou **Legião Escarlate** (vermelha) — e joga **contra o computador** ou **em rede contra outro aparelho**.
 
 ![Escolha de facção e mapa](docs/screenshots/jogo-faccoes.png)
 
@@ -60,7 +60,8 @@ Em <http://localhost:3000/jogo> há também **Force One**, um jogo de **estraté
 - **IA** em três dificuldades: ergue a base, mantém coletores, defende e ataca em ondas.
 - **Névoa de guerra**, explosões, fumaça, marcas de queimado e sons sintetizados.
 - **Trilha sonora adaptativa**, composta e sintetizada em tempo real (sem arquivos de áudio): um tema por facção — Aurora em ré maior, luminoso, a 104 BPM; Legião em dó menor, sombrio, a 92 BPM, com baixo distorcido — que passa de calmo para tensão (inimigos à vista) e batalha (combate ou base sob ataque), com vinhetas de vitória e derrota. Música e efeitos podem ser ligados e desligados separadamente no menu, e a escolha fica salva no navegador.
-- **Visual de soldadinhos de brinquedo**: tropas de plástico brilhante na cor do time, com pernas que andam, luz clara de dia e sombras suaves, pátios de concreto sob as construções e sacos de areia nas defesas.
+- **Visual militar realista**: tanques com blindagem inclinada, lagartas, rodas, escotilhas e antenas; soldados com farda camuflada, colete e capacete; construções de concreto, chapa corrugada e aço (centro de comando, torres de resfriamento, galpões, hangar com telhado em dente de serra, casamatas com sacos de areia). Texturas procedurais de camuflagem por facção (mata para a Aurora, deserto para a Legião), com marcações na cor do time.
+- **Gráficos**: iluminação de ambiente com reflexos nos metais, oclusão de ambiente, brilho em fogo e explosões, antisserrilhado, sombras em alta resolução e luzes nas explosões. Veículos destruídos viram carcaças queimadas que fumegam, soldados caem e construções deixam ruínas. No menu, **Gráficos: Máxima, Equilibrada ou Leve** (padrão: máxima no computador e equilibrada no celular).
 - **Comandos das tropas**: selecione e **clique/toque no mapa** para mover até o ponto escolhido, ou num inimigo para atacar. Também dá para **arrastar a tropa até o destino** (soltar sobre um inimigo ataca) e usar os botões **Mover** (vai direto, sem parar para lutar), **Atacar** e **Parar**. Setas no chão mostram para onde cada grupo vai (verde = mover, vermelho = atacar).
 - **Defesa automática**: tropas atacadas revidam sozinhas e chamam as companheiras por perto; em movimento normal, param para lutar e depois seguem até o destino. Só o "Mover" passa direto.
 - **Controles**: mouse e teclado (esquerdo seleciona e, com tropas selecionadas, move/ataca; direito também comanda; Esc desmarca; M mover, A atacar, S parar, Ctrl+1–9 grupos) ou toque (toque comanda, arrastar a tropa dá a ordem, arrastar o mapa move a câmera, pinça dá zoom).

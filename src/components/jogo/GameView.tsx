@@ -13,7 +13,7 @@ import type { MapId } from "@/lib/jogo/map";
 import type { Room } from "@/lib/jogo/net/room";
 import { GuestLink, HostLink, prepareReplica } from "@/lib/jogo/net/sync";
 import { LocalOrders, type Orders } from "@/lib/jogo/orders";
-import { GameRenderer } from "@/lib/jogo/render/scene";
+import { GameRenderer, loadQuality, saveQuality, type Quality } from "@/lib/jogo/render/scene";
 import { renderThumbnails } from "@/lib/jogo/render/thumbnails";
 import { cn } from "@/lib/utils";
 import { ActionBar, BuildCard, NoRadar, ResourceBar, SelectionPanel, Tabs, formatTime } from "./HudPanels";
@@ -65,6 +65,8 @@ export function GameView({ difficulty, faction, mapId, net, onRestart, onMenu }:
   const [menu, setMenu] = useState(false);
   const [tab, setTab] = useState<Producer>("structure");
   const [audio, setAudio] = useState(loadAudioPrefs);
+  const [quality, setQualityState] = useState<Quality>(loadQuality);
+  const qualityRef = useRef(quality);
   const audioRef = useRef(audio);
   const [touch, setTouch] = useState(false);
   const [miniOpen, setMiniOpen] = useState(false);
@@ -93,13 +95,13 @@ export function GameView({ difficulty, faction, mapId, net, onRestart, onMenu }:
     const wrap = wrapRef.current;
     if (!canvas || !wrap) return;
     const coarse = window.matchMedia("(pointer: coarse)").matches;
-    const lowPower = coarse || window.innerWidth < 900;
+
     const game = new Game(difficulty, faction, mapId);
     // convidado: réplica espelhada; o anfitrião envia o estado
     if (net?.role === "guest") prepareReplica(game);
     let renderer: GameRenderer;
     try {
-      renderer = new GameRenderer(canvas, game, { lowPower });
+      renderer = new GameRenderer(canvas, game, { quality: qualityRef.current });
     } catch {
       queueMicrotask(() => setError("Seu navegador não conseguiu iniciar o WebGL, necessário para o jogo."));
       return;
@@ -323,6 +325,13 @@ export function GameView({ difficulty, faction, mapId, net, onRestart, onMenu }:
     }
   };
 
+  const changeQuality = (q: Quality) => {
+    qualityRef.current = q;
+    setQualityState(q);
+    saveQuality(q);
+    engineRef.current?.renderer.setQuality(q);
+  };
+
   const setSpeed = (s: number) => {
     const e = engineRef.current;
     if (e) e.game.speed = s;
@@ -525,6 +534,8 @@ export function GameView({ difficulty, faction, mapId, net, onRestart, onMenu }:
         <PauseMenu
           speed={hud.speed}
           online={online}
+          quality={quality}
+          onQuality={changeQuality}
           sound={audio.sound}
           music={audio.music}
           onSpeed={setSpeed}

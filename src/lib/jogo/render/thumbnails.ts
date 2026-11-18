@@ -2,6 +2,7 @@
 
 import * as THREE from "three";
 import { BUILDINGS, UNITS, type BuildingKind, type FactionInfo, type UnitKind } from "../defs";
+import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { ModelKit } from "./models";
 
 // Chaves: "<tipo>" com as cores do jogador e "e:<tipo>" com as do inimigo.
@@ -22,8 +23,11 @@ export function renderThumbnails(colors: [FactionInfo, FactionInfo], size = 112)
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.setClearColor(0x000000, 0);
   const scene = new THREE.Scene();
-  scene.add(new THREE.HemisphereLight("#eef6ff", "#6b7a52", 1.6));
-  const sun = new THREE.DirectionalLight("#fff2dc", 2.4);
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+  scene.environmentIntensity = 0.8;
+  scene.add(new THREE.HemisphereLight("#eef6ff", "#7a6f58", 1.1));
+  const sun = new THREE.DirectionalLight("#fff2dc", 3.0);
   sun.position.set(-3, 6, -4);
   scene.add(sun);
   const kit = new ModelKit(

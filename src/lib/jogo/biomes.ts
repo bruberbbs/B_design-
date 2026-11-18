@@ -35,10 +35,10 @@ export interface Biome {
 
 export const BIOMES: Record<BiomeId, Biome> = {
   temperate: {
-    ground: ["#a3c97a", "#6f9e57"],
-    secondary: "#ecd9a2",
-    bed: "#d9c48e",
-    rock: "#a59b8a",
+    ground: ["#8f9c63", "#626e3e"],
+    secondary: "#c9b88e",
+    bed: "#b7a67c",
+    rock: "#8e8676",
     oreTint: "#b8c56a",
     speck: ["rgba(50,100,40,0.13)", "rgba(220,240,170,0.12)"],
     flowers: ["rgba(255,255,255,0.7)", "rgba(255,200,225,0.7)", "rgba(200,190,255,0.7)"],
@@ -52,10 +52,10 @@ export const BIOMES: Record<BiomeId, Biome> = {
     mini: { ground: [112, 168, 92], secondary: [222, 204, 150], liquid: [58, 150, 210], rock: [140, 132, 120], tree: [62, 118, 64] },
   },
   desert: {
-    ground: ["#f0d49a", "#d9ad6a"],
-    secondary: "#f6e6c2",
-    bed: "#c9a76a",
-    rock: "#c98b5a",
+    ground: ["#cdb98e", "#a68d64"],
+    secondary: "#ddd0ae",
+    bed: "#a98f63",
+    rock: "#9c7a58",
     oreTint: "#e7c25a",
     speck: ["rgba(170,110,50,0.14)", "rgba(255,245,220,0.18)"],
     flowers: null,
