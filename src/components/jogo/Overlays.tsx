@@ -15,6 +15,9 @@ interface StartProps {
   onJoin: (code: string) => void;
 }
 
+// Builds sem acesso a WebRTC (ex.: prévia embutida) desligam o modo em rede.
+const NET_OFF = process.env.NEXT_PUBLIC_NET_DISABLED === "1";
+
 export function StartScreen({ onStart, onHost, onJoin }: StartProps) {
   const [mode, setMode] = useState<"solo" | "online">("solo");
   const [code, setCode] = useState("");
@@ -147,6 +150,10 @@ export function StartScreen({ onStart, onHost, onJoin }: StartProps) {
             <Play className="size-5 fill-current" /> Iniciar batalha
           </button>
             </>
+          ) : NET_OFF ? (
+            <p className="rounded-2xl bg-white/5 p-4 text-sm text-white/70 ring-1 ring-white/10">
+              O jogo em rede não funciona nesta versão de prévia. Abra a versão hospedada do Force One para jogar contra outro aparelho.
+            </p>
           ) : (
             <>
               <button
