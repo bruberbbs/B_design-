@@ -1,15 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Play, RotateCcw, Skull, Swords, Trophy, Volume2, VolumeX, House, ChevronDown, Music2 } from "lucide-react";
 import { DIFFICULTY, FACTIONS, type Difficulty, type Faction } from "@/lib/jogo/defs";
-import type { HudSnapshot } from "@/lib/jogo/hud";
+import { mapPreviews, type HudSnapshot } from "@/lib/jogo/hud";
+import { MAPS, type MapId } from "@/lib/jogo/map";
 import { cn } from "@/lib/utils";
 import { formatTime } from "./HudPanels";
 
-export function StartScreen({ onStart }: { onStart: (d: Difficulty, f: Faction) => void }) {
+export function StartScreen({ onStart }: { onStart: (d: Difficulty, f: Faction, m: MapId) => void }) {
   const [diff, setDiff] = useState<Difficulty>("normal");
   const [faction, setFaction] = useState<Faction>("aurora");
+  const [mapId, setMapId] = useState<MapId>("vale");
+  const previews = useMemo(() => mapPreviews(), []);
   const [help, setHelp] = useState(false);
   return (
     <div className="fixed inset-0 overflow-y-auto bg-[#0a0e18] text-white">
@@ -59,6 +62,30 @@ export function StartScreen({ onStart }: { onStart: (d: Difficulty, f: Faction) 
           })}
         </div>
 
+        <p className="mb-2 mt-6 text-xs font-semibold uppercase tracking-widest text-white/45">Mapa</p>
+        <div className="grid w-full grid-cols-2 gap-2.5 sm:grid-cols-4">
+          {MAPS.map((m) => {
+            const active = mapId === m.id;
+            return (
+              <button
+                key={m.id}
+                onClick={() => setMapId(m.id)}
+                aria-pressed={active}
+                title={m.desc}
+                className={cn(
+                  "flex flex-col items-center rounded-2xl p-2 text-center ring-1 transition",
+                  active ? "bg-white/12 ring-2 ring-white/80" : "bg-white/[0.03] ring-white/10 hover:bg-white/[0.07]",
+                )}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={previews[m.id]} alt="" className="aspect-square w-full max-w-[120px] [image-rendering:pixelated]" />
+                <span className="mt-1 text-xs font-bold leading-tight">{m.name}</span>
+                <span className="mt-0.5 text-[10px] leading-snug text-white/50">{m.desc}</span>
+              </button>
+            );
+          })}
+        </div>
+
         <div className="mt-6 w-full max-w-sm">
           <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-white/45">Dificuldade</p>
           <div className="grid grid-cols-3 gap-1.5 rounded-2xl bg-white/5 p-1.5 ring-1 ring-white/10">
@@ -73,7 +100,7 @@ export function StartScreen({ onStart }: { onStart: (d: Difficulty, f: Faction) 
             ))}
           </div>
           <button
-            onClick={() => onStart(diff, faction)}
+            onClick={() => onStart(diff, faction, mapId)}
             className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl py-4 text-lg font-bold ring-1 ring-white/25 transition hover:brightness-110 active:scale-[0.98]"
             style={{
               background: `linear-gradient(to bottom, ${FACTIONS[faction].main}, ${FACTIONS[faction].dark})`,

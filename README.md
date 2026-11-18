@@ -30,11 +30,20 @@ Ferramenta web para **estudo de viabilidade de lotes** em um mapa 3D: clique em 
 
 Em <http://localhost:3000/jogo> há também um jogo de **estratégia em tempo real** em 3D, com visual arredondado. Na tela inicial você escolhe sua facção — **Coalizão Aurora** (azul) ou **Legião Escarlate** (vermelha) — e o computador comanda a outra.
 
-![Escolha de facção](docs/screenshots/jogo-faccoes.png)
+![Escolha de facção e mapa](docs/screenshots/jogo-faccoes.png)
 
 ![Base do jogador em Maré de Aço](docs/screenshots/jogo-base.png)
 
 - **Economia**: Usinas geram energia; a Refinaria traz um Coletor que busca cristais dourados e os converte em créditos. Com energia baixa a produção fica lenta e torres e radar desligam.
+- **Mapas**: quatro paisagens, todas espelhadas para ser justo com os dois lados, com prévia na tela inicial:
+  - **Vale Verde** — campos e bosques cortados por um rio com três vaus.
+  - **Dunas de Âmbar** — deserto com mesetas e cânions, oásis com palmeiras, cactos, poeira ao vento e cristais ricos no centro.
+  - **Fiorde Gelado** — tundra com mar congelado, fiordes, pinheiros nevados e neve caindo.
+  - **Caldeira Vulcânica** — basalto rachado ao redor de um lago de lava; só se cruza pelos flancos. Brasas sobem da lava.
+
+  | Dunas de Âmbar | Fiorde Gelado | Caldeira Vulcânica |
+  | --- | --- | --- |
+  | ![Deserto](docs/screenshots/jogo-mapa-dunas.png) | ![Tundra](docs/screenshots/jogo-mapa-fiorde.png) | ![Vulcão](docs/screenshots/jogo-mapa-caldeira.png) |
 - **Facções**:
 
   | | Coalizão Aurora — mobilidade e precisão | Legião Escarlate — fogo e blindagem |
@@ -126,7 +135,8 @@ src/
   components/jogo/        # interface do jogo (HUD, menus, painéis)
   lib/jogo/
     defs.ts               # regras: unidades, construções, armas, dificuldades
-    map.ts / path.ts      # geração do mapa e A*
+    map.ts / path.ts      # mapas (layouts e gerador simétrico) e A*
+    biomes.ts             # paleta, vegetação, luz e clima de cada bioma
     game.ts               # simulação (economia, produção, combate, visão)
     ai.ts                 # IA inimiga
     input.ts / hud.ts     # controles e dados da interface/minimapa

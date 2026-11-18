@@ -25,7 +25,7 @@ import {
   type Weapon,
   type WeaponKind,
 } from "./defs";
-import { generateMap, isPassableTerrain, Terrain, type GameMap } from "./map";
+import { generateMap, isPassableTerrain, Terrain, type GameMap, type MapId } from "./map";
 import { PathFinder, type Pt } from "./path";
 
 export type Order = "idle" | "move" | "attack" | "attackMove";
@@ -204,10 +204,10 @@ export class Game {
 
   factions: [Faction, Faction];
 
-  constructor(difficulty: Difficulty, playerFaction: Faction = "aurora", seed = 7) {
+  constructor(difficulty: Difficulty, playerFaction: Faction = "aurora", mapId: MapId = "vale", seed = 7) {
     this.difficulty = difficulty;
     this.factions = [playerFaction, OTHER_FACTION[playerFaction]];
-    this.map = generateMap(seed);
+    this.map = generateMap(mapId, seed);
     const n = this.map.w * this.map.h;
     this.bOcc = new Int32Array(n);
     const mkTeam = (): TeamState => ({

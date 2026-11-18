@@ -12,7 +12,8 @@ import {
   type UnitKind,
 } from "./defs";
 import type { Game, Phase } from "./game";
-import { Terrain } from "./map";
+import { BIOMES } from "./biomes";
+import { generateMap, MAPS, Terrain, type GameMap, type MapId } from "./map";
 
 export type ItemKind = UnitKind | BuildingKind;
 
@@ -191,20 +192,67 @@ export function snapshot(g: Game): HudSnapshot {
 
 // ------------------------------------------------------------ minimapa
 
-const MINI_COLORS: Record<number, [number, number, number]> = {
-  [Terrain.Grass]: [112, 168, 92],
-  [Terrain.Sand]: [222, 204, 150],
-  [Terrain.Water]: [58, 150, 210],
-  [Terrain.Rock]: [140, 132, 120],
-  [Terrain.Tree]: [62, 118, 64],
-  [Terrain.Spire]: [95, 240, 208],
-};
+function miniColor(map: GameMap, i: number): [number, number, number] {
+  if (map.ore[i] > 0) return [240, 200, 80];
+  const c = BIOMES[map.biome].mini;
+  switch (map.terrain[i]) {
+    case Terrain.Sand:
+      return c.secondary;
+    case Terrain.Water:
+      return c.liquid;
+    case Terrain.Rock:
+      return c.rock;
+    case Terrain.Tree:
+      return c.tree;
+    case Terrain.Spire:
+      return [95, 240, 208];
+    default:
+      return c.ground;
+  }
+}
+
+// Prévia de cada mapa (mesma rotação do minimapa), com as bases marcadas.
+export function mapPreviews(size = 160): Record<MapId, string> {
+  const out = {} as Record<MapId, string>;
+  for (const m of MAPS) {
+    const map = generateMap(m.id);
+    const src = document.createElement("canvas");
+    src.width = map.w;
+    src.height = map.h;
+    const sctx = src.getContext("2d")!;
+    const img = sctx.createImageData(map.w, map.h);
+    for (let i = 0; i < map.w * map.h; i++) img.data.set([...miniColor(map, i), 255], i * 4);
+    sctx.putImageData(img, 0, 0);
+    const c = document.createElement("canvas");
+    c.width = size;
+    c.height = size;
+    const ctx = c.getContext("2d")!;
+    const s = size / (map.w * Math.SQRT2);
+    ctx.translate(size / 2, size / 2);
+    ctx.rotate(-Math.PI / 4);
+    ctx.scale(s, s);
+    ctx.translate(-map.w / 2, -map.h / 2);
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(src, 0, 0);
+    map.starts.forEach((st, team) => {
+      ctx.fillStyle = team === 0 ? "#ffffff" : "#0a0e18";
+      ctx.strokeStyle = team === 0 ? "#0a0e18" : "#ffffff";
+      ctx.lineWidth = 0.6;
+      ctx.beginPath();
+      ctx.arc(st.x + 1.5, st.z + 1.5, 2.6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    });
+    out[m.id] = c.toDataURL("image/png");
+  }
+  return out;
+}
 
 let miniCache: { key: Game; canvas: HTMLCanvasElement; img: ImageData } | null = null;
 
 // Terreno + cristais + névoa, 1 pixel por tile.
 function miniImage(g: Game) {
-  const { w, h, terrain, ore } = g.map;
+  const { w, h } = g.map;
   if (!miniCache || miniCache.key !== g) {
     const canvas = document.createElement("canvas");
     canvas.width = w;
@@ -215,7 +263,7 @@ function miniImage(g: Game) {
   const ts = g.teams[0];
   const d = img.data;
   for (let i = 0; i < w * h; i++) {
-    let [r, gg, b] = ore[i] > 0 ? [240, 200, 80] : MINI_COLORS[terrain[i]];
+    let [r, gg, b] = miniColor(g.map, i);
     if (!ts.explored[i]) [r, gg, b] = [10, 14, 24];
     else if (!ts.visible[i]) {
       r = r * 0.55 + 4;

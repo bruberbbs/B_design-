@@ -3,6 +3,7 @@
 import * as THREE from "three";
 import { AIR_ALT, BUILDINGS, UNITS, type BuildingKind, type Team } from "../defs";
 import type { Building, Entity, Game, GameEvent, Unit } from "../game";
+import { BIOMES, type Biome } from "../biomes";
 import { mulberry32, Terrain } from "../map";
 import { ModelKit, type BuildingModel, type UnitModel } from "./models";
 import { ParticleSystem } from "./particles";
@@ -51,6 +52,10 @@ export class GameRenderer {
   target = new THREE.Vector3(10, 0, 50);
   zoom = 1.12;
   private game: Game;
+  private biome: Biome;
+  private liquidTiles: number[] = [];
+  private liquidTex: THREE.CanvasTexture | null = null;
+  private ambientAcc = 0;
   private kit: ModelKit;
   private ghostKit: ModelKit;
   private fogData: Uint8Array<ArrayBuffer>;
@@ -92,13 +97,14 @@ export class GameRenderer {
 
   constructor(canvas: HTMLCanvasElement, game: Game, opts: { lowPower: boolean }) {
     this.game = game;
+    this.biome = BIOMES[game.map.biome];
     const { w, h } = game.map;
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: !opts.lowPower, powerPreference: "high-performance" });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, opts.lowPower ? 1.5 : 2));
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 0.98;
+    this.renderer.toneMappingExposure = this.biome.exposure;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.scene.background = SHROUD;
 
@@ -125,9 +131,9 @@ export class GameRenderer {
     }, colorsOf);
 
     // luzes
-    const hemi = new THREE.HemisphereLight("#e4f0ff", "#6b6f4a", 1.15);
+    const hemi = new THREE.HemisphereLight(...this.biome.hemi);
     this.scene.add(hemi);
-    this.sun = new THREE.DirectionalLight("#fff1d6", 1.9);
+    this.sun = new THREE.DirectionalLight(...this.biome.sun);
     this.sun.castShadow = true;
     const sm = opts.lowPower ? 1024 : 2048;
     this.sun.shadow.mapSize.set(sm, sm);
@@ -236,11 +242,13 @@ export class GameRenderer {
     small.height = h;
     const sctx = small.getContext("2d")!;
     const img = sctx.createImageData(w, h);
-    const grassA = new THREE.Color("#a3c97a");
-    const grassB = new THREE.Color("#6f9e57");
-    const sand = new THREE.Color("#ecd9a2");
-    const rock = new THREE.Color("#a59b8a");
-    const bed = new THREE.Color("#d9c48e");
+    const B = this.biome;
+    const grassA = new THREE.Color(B.ground[0]);
+    const grassB = new THREE.Color(B.ground[1]);
+    const sand = new THREE.Color(B.secondary);
+    const rock = new THREE.Color(B.rock);
+    const bed = new THREE.Color(B.bed);
+    const oreTint = new THREE.Color(B.oreTint);
     const tmp = new THREE.Color();
     for (let i = 0; i < w * h; i++) {
       const t = terrain[i];
@@ -251,7 +259,7 @@ export class GameRenderer {
         tmp.copy(grassA).lerp(grassB, shade[i]);
         if (t === Terrain.Tree) tmp.multiplyScalar(0.88);
       }
-      if (oreMax[i] > 0) tmp.lerp(new THREE.Color("#b8c56a"), 0.35);
+      if (oreMax[i] > 0) tmp.lerp(oreTint, 0.35);
       img.data[i * 4] = tmp.r * 255;
       img.data[i * 4 + 1] = tmp.g * 255;
       img.data[i * 4 + 2] = tmp.b * 255;
@@ -285,22 +293,57 @@ export class GameRenderer {
         const ox = x + rnd() * px;
         const oz = z + rnd() * px;
         if (t === Terrain.Sand) {
-          ctx.fillStyle = rnd() < 0.5 ? "rgba(190,160,100,0.35)" : "rgba(255,255,240,0.35)";
+          ctx.fillStyle = rnd() < 0.5 ? "rgba(120,100,70,0.22)" : "rgba(255,255,240,0.3)";
           ctx.beginPath();
           ctx.arc(ox, oz, 1 + rnd(), 0, Math.PI * 2);
           ctx.fill();
         } else {
-          ctx.fillStyle = rnd() < 0.5 ? "rgba(50,100,40,0.13)" : "rgba(220,240,170,0.12)";
+          ctx.fillStyle = rnd() < 0.5 ? B.speck[0] : B.speck[1];
           ctx.beginPath();
           ctx.ellipse(ox, oz, 1.6 + rnd() * 1.4, 0.8 + rnd() * 0.6, rnd() * Math.PI, 0, Math.PI * 2);
           ctx.fill();
-          if (rnd() < 0.015) {
-            ctx.fillStyle = ["rgba(255,255,255,0.7)", "rgba(255,200,225,0.7)", "rgba(200,190,255,0.7)"][Math.floor(rnd() * 3)];
+          if (B.flowers && rnd() < 0.015) {
+            ctx.fillStyle = B.flowers[Math.floor(rnd() * B.flowers.length)];
             ctx.beginPath();
             ctx.arc(ox, oz, 1.1, 0, Math.PI * 2);
             ctx.fill();
           }
         }
+      }
+    }
+    // ondulações de duna (deserto) e rachaduras incandescentes (vulcão)
+    if (B.ripples) {
+      ctx.strokeStyle = B.ripples;
+      ctx.lineWidth = 1.4;
+      for (let k = 0; k < 900; k++) {
+        const x = rnd() * c.width;
+        const z = rnd() * c.height;
+        const i = Math.floor(z / px) * w + Math.floor(x / px);
+        if (terrain[i] !== Terrain.Grass) continue;
+        ctx.beginPath();
+        ctx.arc(x, z + 14, 16 + rnd() * 10, Math.PI * 1.2, Math.PI * 1.8);
+        ctx.stroke();
+      }
+    }
+    if (B.cracks) {
+      ctx.strokeStyle = B.cracks;
+      ctx.lineCap = "round";
+      for (let k = 0; k < 260; k++) {
+        let x = rnd() * c.width;
+        let z = rnd() * c.height;
+        const i = Math.floor(z / px) * w + Math.floor(x / px);
+        if (terrain[i] !== Terrain.Grass && terrain[i] !== Terrain.Sand) continue;
+        ctx.lineWidth = 0.8 + rnd() * 1.4;
+        ctx.beginPath();
+        ctx.moveTo(x, z);
+        let a = rnd() * Math.PI * 2;
+        for (let sgm = 0; sgm < 4; sgm++) {
+          a += (rnd() - 0.5) * 1.4;
+          x += Math.cos(a) * (5 + rnd() * 8);
+          z += Math.sin(a) * (5 + rnd() * 8);
+          ctx.lineTo(x, z);
+        }
+        ctx.stroke();
       }
     }
     const tex = new THREE.CanvasTexture(c);
@@ -379,21 +422,115 @@ export class GameRenderer {
     const { w, h } = this.game.map;
     const geo = new THREE.PlaneGeometry(w, h);
     geo.rotateX(-Math.PI / 2);
-    geo.translate(w / 2, -0.13, h / 2);
+    const L = this.biome.liquid;
+    geo.translate(w / 2, L.level, h / 2);
     const mat = new THREE.MeshStandardMaterial({
-      color: "#3aa7e0",
-      roughness: 0.12,
+      color: L.color,
+      roughness: L.roughness,
       metalness: 0.1,
-      transparent: true,
-      opacity: 0.82,
-      emissive: "#0f4f7a",
-      emissiveIntensity: 0.25,
+      transparent: L.opacity < 1,
+      opacity: L.opacity,
+      emissive: L.emissive,
+      emissiveIntensity: L.emissiveIntensity,
     });
+    for (let i = 0; i < this.game.map.terrain.length; i++) if (this.game.map.terrain[i] === Terrain.Water) this.liquidTiles.push(i);
+    if (L.texture) {
+      const tex = this.liquidTexture(L.texture);
+      mat.map = tex;
+      mat.color.set("#ffffff");
+      if (L.texture === "lava") {
+        mat.emissiveMap = tex;
+        mat.emissive.set("#ffffff");
+      }
+      this.liquidTex = tex;
+    }
     this.fogify(mat);
     const m = new THREE.Mesh(geo, mat);
     m.receiveShadow = true;
     this.scene.add(m);
     return m;
+  }
+
+  // Textura procedural do líquido: lava com crosta e veios, ou gelo rachado.
+  private liquidTexture(kind: "lava" | "ice") {
+    const c = document.createElement("canvas");
+    c.width = c.height = 512;
+    const ctx = c.getContext("2d")!;
+    const rnd = mulberry32(kind === "lava" ? 13 : 21);
+    if (kind === "lava") {
+      const g = ctx.createLinearGradient(0, 0, 512, 512);
+      g.addColorStop(0, "#ff8a2a");
+      g.addColorStop(0.5, "#ff5a14");
+      g.addColorStop(1, "#ff9a3a");
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, 512, 512);
+      // manchas de crosta resfriada, suaves (repetidas nas bordas para a textura encaixar)
+      for (let k = 0; k < 26; k++) {
+        const x = rnd() * 512;
+        const y = rnd() * 512;
+        const r = 40 + rnd() * 70;
+        const dark = `rgba(${70 + rnd() * 30},${22 + rnd() * 12},10,`;
+        for (const [ox, oy] of [[0, 0], [512, 0], [-512, 0], [0, 512], [0, -512], [512, 512], [-512, -512], [512, -512], [-512, 512]]) {
+          const gr = ctx.createRadialGradient(x + ox, y + oy, 0, x + ox, y + oy, r);
+          gr.addColorStop(0, dark + "0.8)");
+          gr.addColorStop(0.55, dark + "0.55)");
+          gr.addColorStop(1, dark + "0)");
+          ctx.fillStyle = gr;
+          ctx.beginPath();
+          ctx.arc(x + ox, y + oy, r, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+      // veios incandescentes, poucos e finos
+      ctx.strokeStyle = "rgba(255,225,110,0.55)";
+      ctx.lineCap = "round";
+      for (let k = 0; k < 22; k++) {
+        let x = rnd() * 512;
+        let y = rnd() * 512;
+        ctx.lineWidth = 1 + rnd() * 1.5;
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        let a = rnd() * Math.PI * 2;
+        for (let s = 0; s < 6; s++) {
+          a += (rnd() - 0.5) * 0.9;
+          x += Math.cos(a) * 18;
+          y += Math.sin(a) * 18;
+          ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+      }
+    } else {
+      ctx.fillStyle = "#d6f1fb";
+      ctx.fillRect(0, 0, 512, 512);
+      for (let k = 0; k < 40; k++) {
+        ctx.fillStyle = rnd() < 0.5 ? "rgba(255,255,255,0.35)" : "rgba(150,200,225,0.25)";
+        ctx.beginPath();
+        ctx.ellipse(rnd() * 512, rnd() * 512, 30 + rnd() * 60, 12 + rnd() * 30, rnd() * Math.PI, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.strokeStyle = "rgba(255,255,255,0.8)";
+      for (let k = 0; k < 45; k++) {
+        let x = rnd() * 512;
+        let y = rnd() * 512;
+        ctx.lineWidth = 0.6 + rnd() * 1.2;
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        let a = rnd() * Math.PI * 2;
+        for (let s = 0; s < 6; s++) {
+          a += (rnd() - 0.5) * 1.6;
+          x += Math.cos(a) * 18;
+          y += Math.sin(a) * 18;
+          ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+      }
+    }
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(kind === "lava" ? 3.5 : 6, kind === "lava" ? 3.5 : 6);
+    tex.anisotropy = 4;
+    return tex;
   }
 
   private buildProps() {
@@ -416,56 +553,60 @@ export class GameRenderer {
     const dummy = new THREE.Object3D();
     const col = new THREE.Color();
 
-    const trunkMat = new THREE.MeshStandardMaterial({ color: "#8a5a3b", roughness: 0.9 });
-    const crownMat = new THREE.MeshStandardMaterial({ color: "#ffffff", roughness: 0.75 });
-    this.fogify(trunkMat);
-    this.fogify(crownMat);
-    const trunks = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.06, 0.09, 0.4, 8), trunkMat, trees.length);
-    const round = trees.filter((t) => !t.pine);
-    const pines = trees.filter((t) => t.pine);
-    const crowns = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(0.34, 2), crownMat, round.length * 2);
-    const pineGeo = new THREE.ConeGeometry(0.3, 0.7, 10);
-    const pineMesh = new THREE.InstancedMesh(pineGeo, crownMat, pines.length * 2);
-    trees.forEach((t, i) => {
-      dummy.position.set(t.x, 0.2 * t.s, t.z);
-      dummy.scale.setScalar(t.s);
-      dummy.rotation.set(0, 0, 0);
-      dummy.updateMatrix();
-      trunks.setMatrixAt(i, dummy.matrix);
-    });
-    round.forEach((t, i) => {
-      dummy.position.set(t.x, 0.55 * t.s, t.z);
-      dummy.scale.set(t.s, t.s * 0.95, t.s);
-      dummy.updateMatrix();
-      crowns.setMatrixAt(i * 2, dummy.matrix);
-      col.setHSL(0.27 + rnd() * 0.08, 0.5, 0.36 + rnd() * 0.1);
-      crowns.setColorAt(i * 2, col);
-      dummy.position.set(t.x + 0.08, 0.82 * t.s, t.z - 0.05);
-      dummy.scale.setScalar(t.s * 0.62);
-      dummy.updateMatrix();
-      crowns.setMatrixAt(i * 2 + 1, dummy.matrix);
-      col.offsetHSL(0, 0, 0.07);
-      crowns.setColorAt(i * 2 + 1, col);
-    });
-    pines.forEach((t, i) => {
-      dummy.position.set(t.x, 0.6 * t.s, t.z);
-      dummy.scale.setScalar(t.s);
-      dummy.updateMatrix();
-      pineMesh.setMatrixAt(i * 2, dummy.matrix);
-      col.setHSL(0.36 + rnd() * 0.05, 0.45, 0.3 + rnd() * 0.06);
-      pineMesh.setColorAt(i * 2, col);
-      dummy.position.set(t.x, 0.92 * t.s, t.z);
-      dummy.scale.setScalar(t.s * 0.7);
-      dummy.updateMatrix();
-      pineMesh.setMatrixAt(i * 2 + 1, dummy.matrix);
-      col.offsetHSL(0, 0, 0.06);
-      pineMesh.setColorAt(i * 2 + 1, col);
-    });
-    for (const m of [trunks, crowns, pineMesh]) {
-      m.castShadow = true;
-      m.receiveShadow = true;
-      if (m.instanceColor) m.instanceColor.needsUpdate = true;
-      this.scene.add(m);
+    if (this.biome.trees !== "temperate") {
+      this.buildBiomeTrees(trees, rnd);
+    } else {
+      const trunkMat = new THREE.MeshStandardMaterial({ color: "#8a5a3b", roughness: 0.9 });
+      const crownMat = new THREE.MeshStandardMaterial({ color: "#ffffff", roughness: 0.75 });
+      this.fogify(trunkMat);
+      this.fogify(crownMat);
+      const trunks = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.06, 0.09, 0.4, 8), trunkMat, trees.length);
+      const round = trees.filter((t) => !t.pine);
+      const pines = trees.filter((t) => t.pine);
+      const crowns = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(0.34, 2), crownMat, round.length * 2);
+      const pineGeo = new THREE.ConeGeometry(0.3, 0.7, 10);
+      const pineMesh = new THREE.InstancedMesh(pineGeo, crownMat, pines.length * 2);
+      trees.forEach((t, i) => {
+        dummy.position.set(t.x, 0.2 * t.s, t.z);
+        dummy.scale.setScalar(t.s);
+        dummy.rotation.set(0, 0, 0);
+        dummy.updateMatrix();
+        trunks.setMatrixAt(i, dummy.matrix);
+      });
+      round.forEach((t, i) => {
+        dummy.position.set(t.x, 0.55 * t.s, t.z);
+        dummy.scale.set(t.s, t.s * 0.95, t.s);
+        dummy.updateMatrix();
+        crowns.setMatrixAt(i * 2, dummy.matrix);
+        col.setHSL(0.27 + rnd() * 0.08, 0.5, 0.36 + rnd() * 0.1);
+        crowns.setColorAt(i * 2, col);
+        dummy.position.set(t.x + 0.08, 0.82 * t.s, t.z - 0.05);
+        dummy.scale.setScalar(t.s * 0.62);
+        dummy.updateMatrix();
+        crowns.setMatrixAt(i * 2 + 1, dummy.matrix);
+        col.offsetHSL(0, 0, 0.07);
+        crowns.setColorAt(i * 2 + 1, col);
+      });
+      pines.forEach((t, i) => {
+        dummy.position.set(t.x, 0.6 * t.s, t.z);
+        dummy.scale.setScalar(t.s);
+        dummy.updateMatrix();
+        pineMesh.setMatrixAt(i * 2, dummy.matrix);
+        col.setHSL(0.36 + rnd() * 0.05, 0.45, 0.3 + rnd() * 0.06);
+        pineMesh.setColorAt(i * 2, col);
+        dummy.position.set(t.x, 0.92 * t.s, t.z);
+        dummy.scale.setScalar(t.s * 0.7);
+        dummy.updateMatrix();
+        pineMesh.setMatrixAt(i * 2 + 1, dummy.matrix);
+        col.offsetHSL(0, 0, 0.06);
+        pineMesh.setColorAt(i * 2 + 1, col);
+      });
+      for (const m of [trunks, crowns, pineMesh]) {
+        m.castShadow = true;
+        m.receiveShadow = true;
+        if (m.instanceColor) m.instanceColor.needsUpdate = true;
+        this.scene.add(m);
+      }
     }
 
     const rockMat = new THREE.MeshStandardMaterial({ color: "#ffffff", roughness: 0.85, flatShading: false });
@@ -477,7 +618,8 @@ export class GameRenderer {
       dummy.rotation.set(rnd(), rnd() * 6, rnd());
       dummy.updateMatrix();
       rockMesh.setMatrixAt(i, dummy.matrix);
-      col.setHSL(0.08, 0.08 + rnd() * 0.06, 0.55 + rnd() * 0.15);
+      const rc = this.biome.rockColor;
+      col.setHSL(rc.h, rc.s + rnd() * 0.06, rc.l + rnd() * rc.lv);
       rockMesh.setColorAt(i, col);
     });
     rockMesh.castShadow = true;
@@ -501,6 +643,136 @@ export class GameRenderer {
       }
       this.spires.push(g);
       this.scene.add(g);
+    }
+  }
+
+  // Vegetação de cada bioma, em malhas instanciadas.
+  private buildBiomeTrees(trees: { x: number; z: number; s: number }[], rnd: () => number) {
+    const style = this.biome.trees;
+    const { w, terrain } = this.game.map;
+    type Inst = { p: [number, number, number]; r?: [number, number, number]; s: [number, number, number]; c: string | THREE.Color };
+    const groups = new Map<string, { geo: THREE.BufferGeometry; items: Inst[] }>();
+    const add = (key: string, geo: () => THREE.BufferGeometry, item: Inst) => {
+      let g = groups.get(key);
+      if (!g) {
+        g = { geo: geo(), items: [] };
+        groups.set(key, g);
+      }
+      g.items.push(item);
+    };
+    const nearLiquid = (x: number, z: number) => {
+      for (let dz = -4; dz <= 4; dz++)
+        for (let dx = -4; dx <= 4; dx++) {
+          const xx = Math.floor(x) + dx;
+          const zz = Math.floor(z) + dz;
+          if (xx >= 0 && zz >= 0 && xx < w && zz < w && terrain[zz * w + xx] === Terrain.Water) return true;
+        }
+      return false;
+    };
+    const hsl = (h: number, s: number, l: number) => new THREE.Color().setHSL(h, s, l);
+    for (const t of trees) {
+      const s = t.s;
+      if (style === "desert") {
+        if (nearLiquid(t.x, t.z)) {
+          // palmeira: tronco inclinado e folhas caídas em leque
+          const tilt = (rnd() - 0.5) * 0.35;
+          const tz = (rnd() - 0.5) * 0.35;
+          add("palmTrunk", () => new THREE.CylinderGeometry(0.035, 0.06, 1, 7), { p: [t.x + tilt * 0.45 * s, 0.5 * s, t.z + tz * 0.45 * s], r: [tz, 0, -tilt], s: [s, s, s], c: "#a07a4e" });
+          const top: [number, number] = [t.x + tilt * 0.9 * s, t.z + tz * 0.9 * s];
+          for (let k = 0; k < 6; k++) {
+            const a = (k / 6) * Math.PI * 2 + rnd();
+            add("palmLeaf", () => new THREE.SphereGeometry(1, 10, 6), {
+              p: [top[0] + Math.cos(a) * 0.24 * s, 0.97 * s, top[1] + Math.sin(a) * 0.24 * s],
+              r: [0, -a, -0.4],
+              s: [0.32 * s, 0.03 * s, 0.09 * s],
+              c: hsl(0.27 + rnd() * 0.06, 0.55, 0.32 + rnd() * 0.08),
+            });
+          }
+        } else {
+          // cacto
+          const g = hsl(0.3 + rnd() * 0.04, 0.38, 0.38 + rnd() * 0.08);
+          add("cactus", () => new THREE.CapsuleGeometry(0.1, 0.4, 4, 10), { p: [t.x, 0.3 * s, t.z], s: [s, s, s], c: g });
+          const arms = 1 + Math.floor(rnd() * 2);
+          for (let k = 0; k < arms; k++) {
+            const side = k === 0 ? 1 : -1;
+            const a = rnd() * Math.PI;
+            const ox = Math.cos(a) * 0.15 * side * s;
+            const oz = Math.sin(a) * 0.15 * side * s;
+            add("cactusArm", () => new THREE.CapsuleGeometry(0.06, 0.16, 4, 8), { p: [t.x + ox, (0.38 + k * 0.08) * s, t.z + oz], s: [s, s, s], c: g });
+            add("cactusJoint", () => new THREE.SphereGeometry(0.065, 8, 6), { p: [t.x + ox * 0.6, (0.28 + k * 0.08) * s, t.z + oz * 0.6], s: [s, s, s], c: g });
+          }
+        }
+      } else if (style === "snow") {
+        // pinheiro nevado: três cones verdes e ponta branca
+        add("snowTrunk", () => new THREE.CylinderGeometry(0.05, 0.07, 0.3, 7), { p: [t.x, 0.15 * s, t.z], s: [s, s, s], c: "#6b4b36" });
+        const base = hsl(0.38 + rnd() * 0.04, 0.35, 0.24 + rnd() * 0.06);
+        for (let k = 0; k < 3; k++) {
+          const c = base.clone().lerp(new THREE.Color("#ffffff"), k * 0.18);
+          add("snowCone", () => new THREE.ConeGeometry(0.32, 0.5, 10), { p: [t.x, (0.42 + k * 0.24) * s, t.z], s: [s * (1 - k * 0.24), s, s * (1 - k * 0.24)], c });
+        }
+        add("snowCap", () => new THREE.ConeGeometry(0.14, 0.22, 10), { p: [t.x, 1.02 * s, t.z], s: [s, s, s], c: "#f6fbff" });
+      } else {
+        // árvore calcinada: tronco escuro com galhos secos
+        const c = hsl(0.05, 0.12, 0.13 + rnd() * 0.06);
+        const lean = (rnd() - 0.5) * 0.25;
+        add("deadTrunk", () => new THREE.CylinderGeometry(0.03, 0.07, 0.9, 6), { p: [t.x, 0.45 * s, t.z], r: [0, 0, lean], s: [s, s, s], c });
+        for (let k = 0; k < 3; k++) {
+          const a = rnd() * Math.PI * 2;
+          add("deadBranch", () => new THREE.CylinderGeometry(0.012, 0.025, 0.4, 5), {
+            p: [t.x + Math.cos(a) * 0.12 * s, (0.55 + k * 0.12) * s, t.z + Math.sin(a) * 0.12 * s],
+            r: [Math.sin(a) * 0.9, 0, -Math.cos(a) * 0.9],
+            s: [s, s, s],
+            c,
+          });
+        }
+      }
+    }
+    const mat = new THREE.MeshStandardMaterial({ color: "#ffffff", roughness: 0.8 });
+    this.fogify(mat);
+    const dummy = new THREE.Object3D();
+    for (const g of groups.values()) {
+      const m = new THREE.InstancedMesh(g.geo, mat, g.items.length);
+      g.items.forEach((it, i) => {
+        dummy.position.set(...it.p);
+        dummy.rotation.set(...(it.r ?? [0, rnd() * 6, 0]));
+        dummy.scale.set(...it.s);
+        dummy.updateMatrix();
+        m.setMatrixAt(i, dummy.matrix);
+        m.setColorAt(i, it.c instanceof THREE.Color ? it.c : new THREE.Color(it.c));
+      });
+      m.castShadow = true;
+      m.receiveShadow = true;
+      if (m.instanceColor) m.instanceColor.needsUpdate = true;
+      this.scene.add(m);
+    }
+  }
+
+  // Clima: neve caindo, poeira no vento ou brasas subindo da lava.
+  private ambientParticles(dt: number) {
+    const kind = this.biome.ambient;
+    if (kind === "none") return;
+    const R = this.viewHeight * 0.85;
+    const tx = this.target.x;
+    const tz = this.target.z;
+    const rate = kind === "snow" ? 70 : kind === "dust" ? 22 : 30;
+    this.ambientAcc += dt * rate;
+    while (this.ambientAcc >= 1) {
+      this.ambientAcc--;
+      const x = tx + (Math.random() - 0.5) * 2 * R;
+      const z = tz + (Math.random() - 0.5) * 2 * R;
+      if (kind === "snow") {
+        this.smoke.emit({ x, y: 4 + Math.random() * 2.5, z, vx: 0.35, vy: -0.95, vz: 0.12, life: 5.5, size0: 0.07, size1: 0.05, color: "#ffffff", alpha: 0.85 });
+      } else if (kind === "dust") {
+        this.smoke.emit({ x, y: 0.2 + Math.random() * 1.3, z, vx: 1.1 + Math.random() * 0.6, vy: 0.05, vz: 0.4, life: 3.5, size0: 0.12, size1: 0.45, color: "#e9cd96", alpha: 0.2 });
+      } else if (this.liquidTiles.length) {
+        // brasas de uma lava próxima à câmera
+        const i = this.liquidTiles[Math.floor(Math.random() * this.liquidTiles.length)];
+        const lx = (i % this.game.map.w) + Math.random();
+        const lz = Math.floor(i / this.game.map.w) + Math.random();
+        if (Math.abs(lx - tx) > R * 1.3 || Math.abs(lz - tz) > R * 1.3) continue;
+        this.fire.emit({ x: lx, y: 0.05, z: lz, vx: (Math.random() - 0.5) * 0.3, vy: 0.6 + Math.random() * 0.9, vz: (Math.random() - 0.5) * 0.3, life: 1.6 + Math.random(), size0: 0.07, size1: 0.02, color: "#ffd27a", color1: "#ff3d00" });
+        if (Math.random() < 0.15) this.smoke.emit({ x: lx, y: 0.2, z: lz, vy: 0.5, life: 3, size0: 0.3, size1: 1.0, color: "#3a2a24", color1: "#6a5a54", alpha: 0.35 });
+      }
     }
   }
 
@@ -1307,7 +1579,14 @@ export class GameRenderer {
       }
     }
     for (const s of this.spires) s.rotation.y += dt * 0.3;
-    (this.water.material as THREE.MeshStandardMaterial).emissiveIntensity = 0.22 + Math.sin(this.clock * 1.3) * 0.05;
+    const LQ = this.biome.liquid;
+    (this.water.material as THREE.MeshStandardMaterial).emissiveIntensity = LQ.emissiveIntensity + Math.sin(this.clock * 1.3) * LQ.pulse;
+    this.ambientParticles(dt);
+    if (this.liquidTex && LQ.texture === "lava") {
+      // a lava escorre devagar
+      this.liquidTex.offset.x += dt * 0.006;
+      this.liquidTex.offset.y += dt * 0.004;
+    }
     this.flushScorch(dt);
     const pxPerUnit = (this.renderer.getPixelRatio() * this.height) / this.viewHeight;
     this.fire.update(dt, pxPerUnit);

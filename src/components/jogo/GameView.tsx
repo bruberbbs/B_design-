@@ -9,6 +9,7 @@ import { BUILDINGS, FACTIONS, OTHER_FACTION, type Difficulty, type Faction, type
 import { Game } from "@/lib/jogo/game";
 import { drawMinimap, minimapToWorld, snapshot, type HudSnapshot, type ItemKind } from "@/lib/jogo/hud";
 import { InputController, type InputMode } from "@/lib/jogo/input";
+import type { MapId } from "@/lib/jogo/map";
 import { GameRenderer } from "@/lib/jogo/render/scene";
 import { renderThumbnails } from "@/lib/jogo/render/thumbnails";
 import { cn } from "@/lib/utils";
@@ -37,11 +38,12 @@ let toastId = 1;
 interface GameViewProps {
   difficulty: Difficulty;
   faction: Faction;
+  mapId: MapId;
   onRestart: () => void;
   onMenu: () => void;
 }
 
-export function GameView({ difficulty, faction, onRestart, onMenu }: GameViewProps) {
+export function GameView({ difficulty, faction, mapId, onRestart, onMenu }: GameViewProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -83,7 +85,7 @@ export function GameView({ difficulty, faction, onRestart, onMenu }: GameViewPro
     if (!canvas || !wrap) return;
     const coarse = window.matchMedia("(pointer: coarse)").matches;
     const lowPower = coarse || window.innerWidth < 900;
-    const game = new Game(difficulty, faction);
+    const game = new Game(difficulty, faction, mapId);
     let renderer: GameRenderer;
     try {
       renderer = new GameRenderer(canvas, game, { lowPower });
@@ -199,7 +201,7 @@ export function GameView({ difficulty, faction, onRestart, onMenu }: GameViewPro
       renderer.dispose();
       engineRef.current = null;
     };
-  }, [difficulty, faction, setMode, openMenu, pushToast]);
+  }, [difficulty, faction, mapId, setMode, openMenu, pushToast]);
 
   // ------------------------------------------------------------ ações da interface
 
