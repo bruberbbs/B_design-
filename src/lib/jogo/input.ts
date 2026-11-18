@@ -10,6 +10,7 @@ import type { GameRenderer } from "./render/scene";
 export interface InputMode {
   placing: BuildingKind | null;
   attackMove: boolean;
+  forceMove: boolean; // "Mover": vai até o destino sem parar para lutar
   boxMode: boolean;
 }
 
@@ -31,6 +32,8 @@ interface PointerInfo {
   moved: boolean;
   box: boolean;
   pan: boolean;
+  drag: boolean; // arrastando uma tropa até o destino
+  grab: number | null; // unidade própria sob o dedo/cursor ao apertar
 }
 
 export class InputController {
@@ -83,15 +86,24 @@ export class InputController {
     this.hooks.sfx.unlock();
     const p = this.local(e);
     this.canvas.setPointerCapture(e.pointerId);
-    this.pointers.set(e.pointerId, { x: p.x, y: p.y, sx: p.x, sy: p.y, button: e.button, type: e.pointerType, moved: false, box: false, pan: false });
+    // apertar sobre uma unidade própria permite arrastá-la até o destino
+    let grab: number | null = null;
+    if (e.button === 0 && !this.hooks.getMode().placing) {
+      const id = this.r.pick(p.x, p.y, e.pointerType === "mouse" ? 12 : 24);
+      const u = id !== null ? this.game.units.get(id) : undefined;
+      if (u && u.team === 0) grab = id;
+    }
+    this.pointers.set(e.pointerId, { x: p.x, y: p.y, sx: p.x, sy: p.y, button: e.button, type: e.pointerType, moved: false, box: false, pan: false, drag: false, grab });
     if (e.pointerType === "touch" && this.pointers.size === 2) {
       const [a, b] = [...this.pointers.values()];
       this.pinch = { dist: Math.hypot(a.x - b.x, a.y - b.y), zoom: this.r.zoom, mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2 };
       for (const q of this.pointers.values()) {
         q.moved = true;
         q.box = false;
+        q.drag = false;
       }
       this.hooks.setBox(null);
+      this.r.setDragArrow(null);
     }
   }
 
@@ -122,7 +134,11 @@ export class InputController {
     if (!info.moved && total > (touch ? 10 : 5)) {
       info.moved = true;
       const mode = this.hooks.getMode();
-      if (touch) {
+      if (info.grab !== null && !mode.placing && !mode.boxMode) {
+        info.drag = true;
+        // arrastar uma unidade fora da seleção passa a comandar só ela
+        if (!this.game.selected.has(info.grab)) this.selectOnly(info.grab);
+      } else if (touch) {
         if (mode.placing) {
           info.pan = false; // arrastar o fantasma
         } else if (mode.boxMode) info.box = true;
@@ -131,6 +147,7 @@ export class InputController {
       else if (info.button === 1 || info.button === 2) info.pan = true;
     }
     if (info.pan) this.r.panPixels(dx, dy);
+    if (info.drag) this.updateDragArrow(p.x, p.y);
     if (info.box) this.hooks.setBox({ x0: info.sx, y0: info.sy, x1: p.x, y1: p.y });
     if (touch && info.moved && this.hooks.getMode().placing) {
       const t = this.ghostTile(p.x, p.y);
@@ -144,6 +161,12 @@ export class InputController {
     if (this.pointers.size < 2) this.pinch = null;
     if (!info) return;
     const p = this.local(e);
+    if (info.drag) {
+      this.r.setDragArrow(null);
+      // ao soltar, mira tolerante: perto de um inimigo já conta como ataque
+      if (this.canCommand()) this.command(p.x, p.y, this.r.pick(p.x, p.y, info.type === "mouse" ? 24 : 34));
+      return;
+    }
     if (info.box) {
       this.hooks.setBox(null);
       const ids = this.r.unitsInRect(info.sx, info.sy, p.x, p.y, 0);
@@ -168,6 +191,27 @@ export class InputController {
     this.pointers.delete(e.pointerId);
     this.pinch = null;
     this.hooks.setBox(null);
+    this.r.setDragArrow(null);
+  }
+
+  // Seta do arrasto: do centro das tropas selecionadas até o dedo; vermelha sobre inimigo.
+  private updateDragArrow(px: number, py: number) {
+    const to = this.r.screenToWorld(px, py);
+    if (!to) return;
+    let x = 0;
+    let z = 0;
+    let n = 0;
+    for (const id of this.game.selected) {
+      const u = this.game.units.get(id);
+      if (!u || u.team !== 0) continue;
+      x += u.x;
+      z += u.z;
+      n++;
+    }
+    if (!n) return;
+    const target = this.game.get(this.r.pick(px, py, 30));
+    const attack = (!!target && target.team !== 0) || this.hooks.getMode().attackMove;
+    this.r.setDragArrow({ x0: x / n, z0: z / n, x1: to.x, z1: to.z, attack });
   }
 
   private wheel(e: WheelEvent) {
@@ -220,11 +264,13 @@ export class InputController {
     const w = this.r.screenToWorld(px, py);
     if (!w) return;
     const mode = this.hooks.getMode();
-    const target = this.game.get(id);
+    // "Mover" ignora o que estiver sob o destino; "Atacar" ataca o alvo ou avança lutando
+    const tid = mode.forceMove ? null : id;
+    const target = this.game.get(tid);
     const attack = !!target && target.team !== 0;
-    this.orders.smart([...this.game.selected], w.x, w.z, id, mode.attackMove);
+    this.orders.smart([...this.game.selected], w.x, w.z, tid, mode.attackMove);
     this.r.ping(target ? this.game.center(target).x : w.x, target ? this.game.center(target).z : w.z, attack || mode.attackMove);
-    if (mode.attackMove) this.hooks.setMode({ attackMove: false });
+    if (mode.attackMove || mode.forceMove) this.hooks.setMode({ attackMove: false, forceMove: false });
   }
 
   private selectOnly(id: number) {
@@ -252,7 +298,7 @@ export class InputController {
       return;
     }
     const id = this.r.pick(px, py, 14);
-    if (mode.attackMove && this.canCommand()) {
+    if ((mode.attackMove || mode.forceMove) && this.canCommand()) {
       this.command(px, py, id);
       return;
     }
@@ -279,8 +325,8 @@ export class InputController {
       this.hooks.setMode({ placing: null });
       return;
     }
-    if (mode.attackMove) {
-      this.hooks.setMode({ attackMove: false });
+    if (mode.attackMove || mode.forceMove) {
+      this.hooks.setMode({ attackMove: false, forceMove: false });
       return;
     }
     if (!this.canCommand()) return;
@@ -302,7 +348,7 @@ export class InputController {
     const dbl = id !== null && this.lastTap.id === id && now - this.lastTap.t < 400;
     this.lastTap = { t: now, id: id ?? -1 };
     const can = this.canCommand();
-    if (mode.attackMove && can) {
+    if ((mode.attackMove || mode.forceMove) && can) {
       this.command(px, py, id);
       return;
     }
@@ -334,7 +380,7 @@ export class InputController {
     const k = e.key.toLowerCase();
     if (e.key === "Escape") {
       const mode = this.hooks.getMode();
-      if (mode.placing || mode.attackMove) this.hooks.setMode({ placing: null, attackMove: false });
+      if (mode.placing || mode.attackMove || mode.forceMove) this.hooks.setMode({ placing: null, attackMove: false, forceMove: false });
       else if (this.game.selected.size) this.game.selected.clear();
       else this.hooks.togglePause();
       return;
@@ -348,7 +394,11 @@ export class InputController {
       return;
     }
     if (k === "a" && !e.ctrlKey && !e.metaKey) {
-      if (this.canCommand()) this.hooks.setMode({ attackMove: true });
+      if (this.canCommand()) this.hooks.setMode({ attackMove: true, forceMove: false });
+      return;
+    }
+    if (k === "m" && !e.ctrlKey && !e.metaKey) {
+      if (this.canCommand()) this.hooks.setMode({ forceMove: true, attackMove: false });
       return;
     }
     if (k === "h") {
@@ -427,7 +477,8 @@ export class InputController {
     if (!kind) {
       this.touchGhost = null;
       this.r.setGhost(null, 0, 0, false);
-      this.canvas.style.cursor = this.hooks.getMode().attackMove ? "crosshair" : this.hoverCursor();
+      const m = this.hooks.getMode();
+      this.canvas.style.cursor = m.attackMove ? "crosshair" : m.forceMove ? "cell" : this.hoverCursor();
       return;
     }
     let t: { tx: number; tz: number } | null = null;

@@ -54,8 +54,8 @@ export function renderThumbnails(colors: [FactionInfo, FactionInfo], size = 112)
     for (const k of Object.keys(UNITS) as UnitKind[]) {
       const m = kit.unit(k, team);
       m.body.rotation.y = 0.5;
-      const r = UNITS[k].infantry ? 0.34 : k === "heavy" || k === "heli" || k === "tufao" ? 0.72 : 0.6;
-      out[prefix + k] = shoot(m.root, r, UNITS[k].air ? 0 : UNITS[k].infantry ? 0.22 : 0.25);
+      const r = UNITS[k].infantry ? 0.44 : k === "heavy" || k === "heli" || k === "tufao" ? 0.72 : 0.6;
+      out[prefix + k] = shoot(m.root, r, UNITS[k].air ? 0 : UNITS[k].infantry ? 0.3 : 0.27);
     }
     for (const k of Object.keys(BUILDINGS) as BuildingKind[]) {
       const m = kit.building(k, team);

@@ -1,6 +1,6 @@
 "use client";
 
-import { Coins, Crosshair, House, Lock, OctagonX, Radar, SquareDashed, Star, Users, Wrench, X, Zap, BadgeDollarSign } from "lucide-react";
+import { Coins, Crosshair, House, Lock, OctagonX, Radar, SquareDashed, Star, Users, Wrench, X, Zap, BadgeDollarSign, Move, Swords } from "lucide-react";
 import type { Producer } from "@/lib/jogo/defs";
 import type { HudSnapshot, ItemKind, ItemState, SelectionInfo } from "@/lib/jogo/hud";
 import { cn } from "@/lib/utils";
@@ -166,10 +166,54 @@ interface SelProps {
   onStop: () => void;
   onClear: () => void;
   onSelectKind: (k: string) => void;
+  moveMode: boolean;
+  attackMode: boolean;
+  onMoveMode: () => void;
+  onAttackMode: () => void;
 }
 
-export function SelectionPanel({ sel, thumbs, onSell, onRepair, onPrimary, onStop, onClear, onSelectKind }: SelProps) {
+// Comandos das tropas selecionadas: Mover, Atacar e Parar, com rótulo.
+function UnitCommands({ moveMode, attackMode, onMoveMode, onAttackMode, onStop }: Pick<SelProps, "moveMode" | "attackMode" | "onMoveMode" | "onAttackMode" | "onStop">) {
+  return (
+    <div className="mt-2">
+      <div className="grid grid-cols-3 gap-1.5">
+        <CmdBtn active={moveMode} onClick={onMoveMode} tone="move">
+          <Move className="size-4" /> Mover
+        </CmdBtn>
+        <CmdBtn active={attackMode} onClick={onAttackMode} tone="attack">
+          <Swords className="size-4" /> Atacar
+        </CmdBtn>
+        <CmdBtn onClick={onStop}>
+          <OctagonX className="size-4" /> Parar
+        </CmdBtn>
+      </div>
+      <p className="mt-1.5 text-[10px] leading-snug text-white/45">Ou arraste a tropa até o destino. Soltar sobre um inimigo ataca.</p>
+    </div>
+  );
+}
+
+function CmdBtn({ children, onClick, active, tone }: { children: React.ReactNode; onClick: () => void; active?: boolean; tone?: "move" | "attack" }) {
+  return (
+    <button
+      onClick={onClick}
+      aria-pressed={active}
+      className={cn(
+        "flex items-center justify-center gap-1.5 rounded-xl py-2 text-xs font-bold ring-1 transition active:scale-95",
+        active && tone === "move" && "bg-emerald-400 text-emerald-950 ring-emerald-200",
+        active && tone === "attack" && "bg-red-500 text-white ring-red-300",
+        !active && tone === "move" && "bg-emerald-400/15 text-emerald-100 ring-emerald-300/30 hover:bg-emerald-400/25",
+        !active && tone === "attack" && "bg-red-500/15 text-red-100 ring-red-300/30 hover:bg-red-500/25",
+        !tone && "bg-white/8 text-white/90 ring-white/15 hover:bg-white/15",
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
+export function SelectionPanel({ sel, thumbs, onSell, onRepair, onPrimary, onStop, onClear, onSelectKind, moveMode, attackMode, onMoveMode, onAttackMode }: SelProps) {
   if (sel.type === "none") return null;
+  const cmd = { moveMode, attackMode, onMoveMode, onAttackMode, onStop };
   if (sel.type === "multi") {
     return (
       <div className="rounded-2xl bg-black/35 p-2.5 ring-1 ring-white/10">
@@ -198,6 +242,7 @@ export function SelectionPanel({ sel, thumbs, onSell, onRepair, onPrimary, onSto
             </button>
           ))}
         </div>
+        {sel.groups.length > 0 && <UnitCommands {...cmd} />}
       </div>
     );
   }
@@ -238,13 +283,10 @@ export function SelectionPanel({ sel, thumbs, onSell, onRepair, onPrimary, onSto
           )}
         </div>
       </div>
-      {sel.own && (
+      {sel.own && sel.entity === "unit" && <UnitCommands {...cmd} />}
+      {sel.own && sel.entity === "building" && (
         <div className="mt-2 flex flex-wrap gap-1.5">
-          {sel.entity === "unit" && (
-            <ActionChip onClick={onStop}>
-              <OctagonX className="size-3.5" /> Parar
-            </ActionChip>
-          )}
+
           {sel.entity === "building" && sel.hp < sel.maxHp && (
             <ActionChip onClick={() => onRepair(sel.id)} active={sel.repairing}>
               <Wrench className="size-3.5" /> {sel.repairing ? "Reparando" : "Reparar"}
@@ -293,9 +335,11 @@ function ActionChip({ onClick, children, active, danger }: { onClick: () => void
 interface ActionProps {
   hud: HudSnapshot;
   attackMove: boolean;
+  moveMode: boolean;
   boxMode: boolean;
   touch: boolean;
   onAttackMove: () => void;
+  onMoveMode: () => void;
   onBoxMode: () => void;
   onArmy: () => void;
   onStop: () => void;
@@ -303,7 +347,7 @@ interface ActionProps {
   vertical?: boolean;
 }
 
-export function ActionBar({ hud, attackMove, boxMode, touch, onAttackMove, onBoxMode, onArmy, onStop, onHome, vertical }: ActionProps) {
+export function ActionBar({ hud, attackMove, moveMode, boxMode, touch, onAttackMove, onMoveMode, onBoxMode, onArmy, onStop, onHome, vertical }: ActionProps) {
   return (
     <div className={cn("flex gap-1.5 rounded-2xl bg-[#0d1322]/80 p-1.5 shadow-xl ring-1 ring-white/10 backdrop-blur-md", vertical && "flex-col")}>
       {touch && (
@@ -314,7 +358,10 @@ export function ActionBar({ hud, attackMove, boxMode, touch, onAttackMove, onBox
       <FabBtn label="Selecionar exército" onClick={onArmy}>
         <Users className="size-5" />
       </FabBtn>
-      <FabBtn label="Atacar-mover (A)" active={attackMove} disabled={!hud.hasCommandable} onClick={onAttackMove}>
+      <FabBtn label="Mover (M)" active={moveMode} disabled={!hud.hasCommandable} onClick={onMoveMode}>
+        <Move className="size-5" />
+      </FabBtn>
+      <FabBtn label="Atacar (A)" active={attackMove} disabled={!hud.hasCommandable} onClick={onAttackMove}>
         <Crosshair className="size-5" />
       </FabBtn>
       <FabBtn label="Parar (S)" disabled={!hud.hasCommandable} onClick={onStop}>

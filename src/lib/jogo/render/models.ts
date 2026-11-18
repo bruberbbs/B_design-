@@ -13,6 +13,7 @@ export interface UnitModel {
   barrel: THREE.Object3D | null;
   cargo: THREE.Object3D | null;
   rotors: THREE.Object3D[];
+  legs: THREE.Object3D[];
   height: number;
 }
 
@@ -75,8 +76,17 @@ export class ModelKit {
     return m as THREE.MeshStandardMaterial;
   }
 
+  // Cores dos times em plástico brilhante, como soldadinhos de brinquedo.
   team(team: Team, shade: "main" | "dark" | "light") {
-    return this.mat(`team${shade}`, this.colorsOf(team)[shade], { roughness: 0.45 });
+    const color = this.colorsOf(team)[shade];
+    const k = `plastic${shade}|${color}`;
+    let m = this.mats.get(k);
+    if (!m) {
+      m = new THREE.MeshPhysicalMaterial({ color, roughness: 0.38, metalness: 0, clearcoat: 0.55, clearcoatRoughness: 0.35 });
+      this.patch(m);
+      this.mats.set(k, m);
+    }
+    return m as THREE.MeshPhysicalMaterial;
   }
 
   get steel() {
@@ -125,37 +135,60 @@ export class ModelKit {
     let barrel: THREE.Object3D | null = null;
     let cargo: THREE.Object3D | null = null;
     const rotors: THREE.Object3D[] = [];
+    const legs: THREE.Object3D[] = [];
     let height = 0.5;
     const main = this.team(team, "main");
     const dark = this.team(team, "dark");
     const light = this.team(team, "light");
 
+    // Soldadinho de plástico: tudo na cor do time, com capacete de aba, cinto, mochila e pernas articuladas.
     const soldier = (gear: "rifle" | "rocket" | "flamer") => {
-      const rocket = gear === "rocket";
-      body.add(this.mesh(this.capsule(0.055, 0.1), this.tread, 0, 0.09, 0.045));
-      body.add(this.mesh(this.capsule(0.055, 0.1), this.tread, 0, 0.09, -0.045));
-      body.add(this.mesh(this.capsule(0.085, 0.1), main, 0, 0.24, 0));
-      body.add(this.mesh(this.sphere(0.065), this.skin, 0.01, 0.37, 0));
-      const helmet = this.mesh(this.sphere(0.075, 16, 8, Math.PI * 2, Math.PI / 2), dark, 0.0, 0.385, 0);
-      body.add(helmet);
-      if (rocket) {
-        const tube = this.mesh(this.cyl(0.04, 0.04, 0.36, 12), this.darkSteel, 0.02, 0.36, -0.09);
-        tube.rotation.z = Math.PI / 2;
-        body.add(tube);
-        body.add(this.mesh(this.sphere(0.042), main, 0.2, 0.36, -0.09));
-      } else if (gear === "flamer") {
-        // tanque de combustível nas costas e bico lança-chamas
-        body.add(this.mesh(this.capsule(0.05, 0.12), this.mat("fuel", "#f08a24", { roughness: 0.4 }), -0.1, 0.27, 0.035));
-        body.add(this.mesh(this.capsule(0.05, 0.12), this.mat("fuel", "#f08a24", { roughness: 0.4 }), -0.1, 0.27, -0.035));
-        const noz = this.mesh(this.cyl(0.025, 0.035, 0.24, 8), this.darkSteel, 0.13, 0.22, -0.07);
-        noz.rotation.z = Math.PI / 2;
-        body.add(noz);
-        body.add(this.mesh(this.sphere(0.022), this.mat("pilot", "#ffb347", { emissive: "#ff7a00", emissiveIntensity: 1 }), 0.26, 0.22, -0.07));
-      } else {
-        const gun = this.mesh(this.rbox(0.26, 0.04, 0.04, 0.015), this.darkSteel, 0.13, 0.24, -0.07);
-        body.add(gun);
+      const fig = new THREE.Group();
+      fig.scale.setScalar(1.3);
+      body.add(fig);
+      for (const z of [0.045, -0.045]) {
+        const hip = new THREE.Group();
+        hip.position.set(0, 0.2, z);
+        hip.add(this.mesh(this.capsule(0.04, 0.12), main, 0, -0.1, 0));
+        hip.add(this.mesh(this.rbox(0.09, 0.03, 0.06, 0.012), dark, 0.02, -0.19, 0));
+        fig.add(hip);
+        legs.push(hip);
       }
-      height = 0.45;
+      fig.add(this.mesh(this.capsule(0.07, 0.1), main, 0, 0.29, 0));
+      fig.add(this.mesh(this.torus(0.068, 0.014), dark, 0, 0.245, 0).rotateX(Math.PI / 2));
+      fig.add(this.mesh(this.rbox(0.06, 0.11, 0.11, 0.025), dark, -0.075, 0.31, 0));
+      fig.add(this.mesh(this.sphere(0.05, 14, 10), main, 0.005, 0.42, 0));
+      fig.add(this.mesh(this.sphere(0.064, 16, 8, Math.PI * 2, Math.PI / 2), dark, 0, 0.435, 0));
+      fig.add(this.mesh(this.cyl(0.078, 0.078, 0.012, 18), dark, 0, 0.437, 0));
+      // braços seguram a arma à frente
+      for (const z of [0.065, -0.065]) {
+        const arm = this.mesh(this.capsule(0.024, 0.1), main, 0.05, 0.31, z * 0.85);
+        arm.rotation.z = -1.15;
+        arm.rotation.x = z > 0 ? 0.35 : -0.1;
+        fig.add(arm);
+      }
+      if (gear === "rocket") {
+        const tube = this.mesh(this.cyl(0.035, 0.035, 0.34, 12), main, 0.03, 0.4, -0.07);
+        tube.rotation.z = Math.PI / 2;
+        fig.add(tube);
+        fig.add(this.mesh(this.cyl(0.045, 0.035, 0.05, 12), dark, 0.21, 0.4, -0.07).rotateZ(Math.PI / 2));
+      } else if (gear === "flamer") {
+        // tanques de combustível nas costas e bico lança-chamas
+        for (const z of [0.03, -0.03]) fig.add(this.mesh(this.capsule(0.038, 0.11), dark, -0.11, 0.33, z));
+        const noz = this.mesh(this.cyl(0.02, 0.03, 0.24, 8), main, 0.15, 0.29, -0.03);
+        noz.rotation.z = Math.PI / 2;
+        fig.add(noz);
+        fig.add(this.mesh(this.sphere(0.02), this.mat("pilot", "#ffb347", { emissive: "#ff7a00", emissiveIntensity: 1 }), 0.28, 0.29, -0.03));
+      } else {
+        const gun = new THREE.Group();
+        gun.position.set(0.13, 0.31, -0.02);
+        gun.rotation.z = 0.12;
+        gun.add(this.mesh(this.rbox(0.26, 0.032, 0.03, 0.012), main, 0, 0, 0));
+        gun.add(this.mesh(this.rbox(0.06, 0.05, 0.028, 0.01), main, -0.1, -0.02, 0));
+        gun.add(this.mesh(this.rbox(0.03, 0.05, 0.02, 0.008), dark, 0.02, -0.03, 0));
+        fig.add(gun);
+      }
+      height = 0.62;
     };
 
     switch (kind) {
@@ -473,10 +506,32 @@ export class ModelKit {
         break;
       }
     }
-    return { root, body, turret, barrel, cargo, rotors, height };
+    // veículos terrestres um pouco maiores, mais "brinquedo"
+    if (!["rifle", "rocket", "flamer", "drone", "heli", "tufao"].includes(kind)) {
+      body.scale.setScalar(1.12);
+      height *= 1.12;
+    }
+    return { root, body, turret, barrel, cargo, rotors, legs, height };
   }
 
   // ------------------------------------------------------------ construções
+
+  // Anel de sacos de areia em volta das defesas.
+  private sandbags(g: THREE.Group) {
+    const mat = this.mat("sandbag", "#cdb07a", { roughness: 0.9 });
+    for (let i = 0; i < 12; i++) {
+      if (i === 3 || i === 4) continue; // passagem
+      const a = (i / 12) * Math.PI * 2;
+      const bag = this.mesh(this.capsule(0.055, 0.09), mat, Math.cos(a) * 0.5, 0.06, Math.sin(a) * 0.5);
+      bag.rotation.set(0, -a + Math.PI / 2, Math.PI / 2);
+      g.add(bag);
+      if (i % 2 === 0) {
+        const top = this.mesh(this.capsule(0.05, 0.08), mat, Math.cos(a + 0.26) * 0.5, 0.15, Math.sin(a + 0.26) * 0.5);
+        top.rotation.set(0, -a - 0.26 + Math.PI / 2, Math.PI / 2);
+        g.add(top);
+      }
+    }
+  }
 
   building(kind: BuildingKind, team: Team): BuildingModel {
     const root = new THREE.Group();
@@ -643,6 +698,7 @@ export class ModelKit {
         break;
       }
       case "aa": {
+        this.sandbags(inner);
         inner.add(this.mesh(this.cyl(0.4, 0.46, 0.28, 20), this.concrete, 0, 0.14, 0));
         inner.add(this.mesh(this.torus(0.4, 0.05), dark, 0, 0.28, 0).rotateX(Math.PI / 2));
         const t = new THREE.Group();
@@ -666,6 +722,7 @@ export class ModelKit {
         break;
       }
       case "inferno": {
+        this.sandbags(inner);
         inner.add(this.mesh(this.cyl(0.42, 0.48, 0.32, 20), this.concrete, 0, 0.16, 0));
         inner.add(this.mesh(this.torus(0.42, 0.05), dark, 0, 0.32, 0).rotateX(Math.PI / 2));
         const tankMat = this.mat("fuel", "#f08a24", { roughness: 0.4 });
@@ -691,6 +748,7 @@ export class ModelKit {
         break;
       }
       case "turret": {
+        this.sandbags(inner);
         inner.add(this.mesh(this.cyl(0.42, 0.48, 0.3, 20), this.concrete, 0, 0.15, 0));
         inner.add(this.mesh(this.torus(0.42, 0.05), dark, 0, 0.3, 0).rotateX(Math.PI / 2));
         const t = new THREE.Group();

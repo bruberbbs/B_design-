@@ -28,7 +28,7 @@ Ferramenta web para **estudo de viabilidade de lotes** em um mapa 3D: clique em 
 
 ## Jogo: Force One
 
-Em <http://localhost:3000/jogo> há também **Force One**, um jogo de **estratégia em tempo real** em 3D, com visual arredondado. Na tela inicial você escolhe sua facção — **Coalizão Aurora** (azul) ou **Legião Escarlate** (vermelha) — e joga **contra o computador** ou **em rede contra outro aparelho**.
+Em <http://localhost:3000/jogo> há também **Force One**, um jogo de **estratégia em tempo real** em 3D, com visual arredondado. Na tela inicial você escolhe sua facção — **Coalizão Aurora** (verde) ou **Legião Escarlate** (vermelha) — e joga **contra o computador** ou **em rede contra outro aparelho**.
 
 ![Escolha de facção e mapa](docs/screenshots/jogo-faccoes.png)
 
@@ -60,7 +60,9 @@ Em <http://localhost:3000/jogo> há também **Force One**, um jogo de **estraté
 - **IA** em três dificuldades: ergue a base, mantém coletores, defende e ataca em ondas.
 - **Névoa de guerra**, explosões, fumaça, marcas de queimado e sons sintetizados.
 - **Trilha sonora adaptativa**, composta e sintetizada em tempo real (sem arquivos de áudio): um tema por facção — Aurora em ré maior, luminoso, a 104 BPM; Legião em dó menor, sombrio, a 92 BPM, com baixo distorcido — que passa de calmo para tensão (inimigos à vista) e batalha (combate ou base sob ataque), com vinhetas de vitória e derrota. Música e efeitos podem ser ligados e desligados separadamente no menu, e a escolha fica salva no navegador.
-- **Controles**: mouse e teclado (esquerdo seleciona, direito comanda, A atacar-mover, S parar, Ctrl+1–9 grupos) ou toque (toque comanda, arrastar move a câmera, pinça dá zoom).
+- **Visual de soldadinhos de brinquedo**: tropas de plástico brilhante na cor do time, com pernas que andam, luz clara de dia e sombras suaves, pátios de concreto sob as construções e sacos de areia nas defesas.
+- **Comandos das tropas**: selecione e use **Mover** (vai direto ao destino, sem parar para lutar), **Atacar** (ataca o alvo tocado ou avança lutando) e **Parar**, ou simplesmente **arraste a tropa até o destino** — soltar sobre um inimigo ataca. Setas no chão mostram para onde cada grupo vai (verde = mover, vermelho = atacar).
+- **Controles**: mouse e teclado (esquerdo seleciona, direito comanda, M mover, A atacar, S parar, Ctrl+1–9 grupos) ou toque (toque comanda, arrastar a tropa dá a ordem, arrastar o mapa move a câmera, pinça dá zoom).
 
 ![Helicópteros e drones sob fogo antiaéreo](docs/screenshots/jogo-aereo.png)
 

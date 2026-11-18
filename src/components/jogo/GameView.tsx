@@ -37,7 +37,7 @@ interface Toast {
   at: number;
 }
 
-const INITIAL_MODE: InputMode = { placing: null, attackMove: false, boxMode: false };
+const INITIAL_MODE: InputMode = { placing: null, attackMove: false, forceMove: false, boxMode: false };
 let toastId = 1;
 
 interface GameViewProps {
@@ -240,7 +240,7 @@ export function GameView({ difficulty, faction, mapId, net, onRestart, onMenu }:
     const ts = e.game.teams[0];
     if (kind in BUILDINGS) {
       if (ts.ready === kind) {
-        setMode({ placing: modeRef.current.placing ? null : (kind as keyof typeof BUILDINGS), attackMove: false });
+        setMode({ placing: modeRef.current.placing ? null : (kind as keyof typeof BUILDINGS), attackMove: false, forceMove: false });
         e.sfx.ui();
         return;
       }
@@ -271,7 +271,14 @@ export function GameView({ difficulty, faction, mapId, net, onRestart, onMenu }:
 
   const ownSelectedUnits = (e: Engine) => [...e.game.selected].filter((id) => e.game.units.get(id)?.team === 0);
 
+  const toggleMove = () => setMode({ forceMove: !modeRef.current.forceMove, attackMove: false, placing: null });
+  const toggleAttack = () => setMode({ attackMove: !modeRef.current.attackMove, forceMove: false, placing: null });
+
   const actions = {
+    moveMode: mode.forceMove,
+    attackMode: mode.attackMove,
+    onMoveMode: toggleMove,
+    onAttackMode: toggleAttack,
     onSell: (id: number) => withEngine((e) => e.orders.sell(id))(),
     onRepair: (id: number) => withEngine((e) => e.orders.repair(id))(),
     onPrimary: (id: number) =>
@@ -287,7 +294,8 @@ export function GameView({ difficulty, faction, mapId, net, onRestart, onMenu }:
   };
 
   const bar = {
-    onAttackMove: () => setMode({ attackMove: !modeRef.current.attackMove, placing: null }),
+    onAttackMove: toggleAttack,
+    onMoveMode: toggleMove,
     onBoxMode: () => setMode({ boxMode: !modeRef.current.boxMode }),
     onArmy: withEngine((e) => e.input.selectArmy()),
     onStop: actions.onStop,
@@ -427,10 +435,17 @@ export function GameView({ difficulty, faction, mapId, net, onRestart, onMenu }:
             </div>
           </div>
         )}
-        {mode.attackMove && !mode.placing && (
-          <div className="pointer-events-none absolute inset-x-0 bottom-3 flex justify-center">
-            <div className="rounded-full bg-amber-400/90 px-4 py-1.5 text-xs font-bold text-amber-950 shadow-lg">
-              Atacar-mover: {touch ? "toque" : "clique"} no destino
+        {(mode.attackMove || mode.forceMove) && !mode.placing && (
+          <div className="pointer-events-none absolute inset-x-0 top-28 flex justify-center px-3 lg:top-auto lg:bottom-3">
+            <div
+              className={cn(
+                "rounded-full px-4 py-1.5 text-center text-xs font-bold shadow-lg",
+                mode.attackMove ? "bg-red-500/95 text-white" : "bg-emerald-400/95 text-emerald-950",
+              )}
+            >
+              {mode.attackMove
+                ? `Atacar: ${touch ? "toque" : "clique"} num inimigo ou no destino (as tropas lutam no caminho)`
+                : `Mover: ${touch ? "toque" : "clique"} no destino (as tropas não param para lutar)`}
             </div>
           </div>
         )}
@@ -445,7 +460,7 @@ export function GameView({ difficulty, faction, mapId, net, onRestart, onMenu }:
         {/* ações rápidas */}
         {hud && (
           <div className={cn("absolute", touch ? "right-2 top-1/2 -translate-y-1/2" : "bottom-3 left-3", mode.placing && !touch && "hidden")}>
-            <ActionBar hud={hud} attackMove={mode.attackMove} boxMode={mode.boxMode} touch={touch} vertical={touch} {...bar} />
+            <ActionBar hud={hud} attackMove={mode.attackMove} moveMode={mode.forceMove} boxMode={mode.boxMode} touch={touch} vertical={touch} {...bar} />
           </div>
         )}
 
@@ -502,7 +517,7 @@ export function GameView({ difficulty, faction, mapId, net, onRestart, onMenu }:
             <SelectionPanel sel={hud.selection} thumbs={thumbs} {...actions} />
           </div>
           <p className="text-[10px] leading-relaxed text-white/35">
-            Esquerdo: selecionar · Direito: mover/atacar · Arraste: seleção em área · Roda: zoom · Setas ou arrastar com o direito: câmera · A: atacar-mover · S: parar · Ctrl+1–9: grupos
+            Esquerdo: selecionar · Direito: mover/atacar · Arraste: seleção em área · Roda: zoom · Setas ou arrastar com o direito: câmera · Arraste a tropa: ordem · M: mover · A: atacar · S: parar · Ctrl+1–9: grupos
           </p>
         </aside>
       )}

@@ -29,7 +29,7 @@ export function StartScreen({ onStart, onHost, onJoin }: StartProps) {
   return (
     <div className="fixed inset-0 overflow-y-auto bg-[#0a0e18] text-white">
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute -left-32 top-10 size-[28rem] rounded-full bg-sky-500/25 blur-3xl" />
+        <div className="absolute -left-32 top-10 size-[28rem] rounded-full bg-emerald-500/20 blur-3xl" />
         <div className="absolute -right-24 bottom-0 size-[30rem] rounded-full bg-red-500/20 blur-3xl" />
         <div className="absolute left-1/2 top-1/2 size-[22rem] -translate-x-1/2 -translate-y-1/2 rounded-full bg-amber-300/10 blur-3xl" />
       </div>
@@ -220,11 +220,11 @@ export function StartScreen({ onStart, onHost, onJoin }: StartProps) {
               Lança-mísseis, Batedores, Javalis e Drones conseguem atingi-los — tanques, artilharia e torres terrestres não.
             </HelpCard>
             <HelpCard title="Mouse e teclado">
-              Esquerdo seleciona (arraste para área, duplo clique pega o mesmo tipo). Direito move, ataca ou coleta. Roda: zoom. Setas ou arrastar com o
+              Esquerdo seleciona (arraste para área, duplo clique pega o mesmo tipo). Direito move, ataca ou coleta; ou arraste a tropa até o destino. M: mover sem lutar. Roda: zoom. Setas ou arrastar com o
               direito: câmera. A: atacar-mover, S: parar, H: base, Ctrl+1–9: grupos, Esc: menu.
             </HelpCard>
             <HelpCard title="Toque">
-              Toque numa unidade para selecionar e toque no mapa para mover ou atacar. Arraste para mover a câmera e use pinça para zoom. O botão de
+              Toque numa unidade para selecionar e toque no mapa para mover ou atacar, ou arraste a tropa até o destino (soltar sobre um inimigo ataca). Os botões Mover, Atacar e Parar aparecem na seleção. Arraste para mover a câmera e use pinça para zoom. O botão de
               seleção em área permite arrastar um retângulo.
             </HelpCard>
           </div>

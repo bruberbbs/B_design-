@@ -1219,10 +1219,10 @@ export class Game {
 
   private tryFire(u: Unit, target: Entity, w: Weapon, dt: number, facing: number) {
     const d = UNITS[u.kind];
-    const muzzle = d.infantry ? 0.25 : d.radius + 0.25;
+    const muzzle = d.infantry ? 0.36 : d.radius + 0.25;
     const sx = u.x + Math.cos(facing) * muzzle;
     const sz = u.z + Math.sin(facing) * muzzle;
-    const sy = d.air ? AIR_ALT - 0.15 : d.infantry ? 0.32 : u.kind === "heavy" ? 0.6 : 0.5;
+    const sy = d.air ? AIR_ALT - 0.15 : d.infantry ? 0.42 : u.kind === "heavy" ? 0.65 : 0.55;
     if (u.burstLeft > 0) {
       u.burstTimer -= dt;
       if (u.burstTimer <= 0) {

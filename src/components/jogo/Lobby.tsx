@@ -12,7 +12,7 @@ function Shell({ children, onCancel }: { children: React.ReactNode; onCancel: ()
   return (
     <div className="fixed inset-0 overflow-y-auto bg-[#0a0e18] text-white">
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute -left-32 top-10 size-[28rem] rounded-full bg-sky-500/20 blur-3xl" />
+        <div className="absolute -left-32 top-10 size-[28rem] rounded-full bg-emerald-500/20 blur-3xl" />
         <div className="absolute -right-24 bottom-0 size-[30rem] rounded-full bg-red-500/15 blur-3xl" />
       </div>
       <div className="relative mx-auto flex min-h-full max-w-sm flex-col items-center justify-center px-5 py-10 text-center">

@@ -21,6 +21,7 @@ interface UnitView {
   fill: THREE.Mesh;
   cargoBar: THREE.Mesh | null;
   barW: number;
+  blob: THREE.Mesh;
 }
 
 interface BuildingView {
@@ -74,6 +75,10 @@ export class GameRenderer {
   private fire: ParticleSystem;
   private smoke: ParticleSystem;
   private pings: Ping[] = [];
+  private arrowMesh: THREE.Mesh;
+  private arrowPos = new Float32Array(48 * 9 * 3);
+  private arrowCol = new Float32Array(48 * 9 * 3);
+  private dragArrow: { x0: number; z0: number; x1: number; z1: number; attack: boolean } | null = null;
   private delayed: Delayed[] = [];
   private ghost: THREE.Group | null = null;
   private ghostKey = "";
@@ -93,6 +98,9 @@ export class GameRenderer {
     enemy: new THREE.MeshBasicMaterial({ color: "#ff6b5e", transparent: true, opacity: 0.95, depthWrite: false }),
   };
   private scorchQueue: { x: number; z: number; r: number }[] = [];
+  private padQueue: { tx: number; tz: number; w: number; h: number }[] = [];
+  private blobGeo = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
+  private blobMat: THREE.MeshBasicMaterial;
   private scorchTimer = 0;
 
   constructor(canvas: HTMLCanvasElement, game: Game, opts: { lowPower: boolean }) {
@@ -104,7 +112,7 @@ export class GameRenderer {
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = this.biome.exposure;
+    this.renderer.toneMappingExposure = this.biome.exposure * 1.04;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.scene.background = SHROUD;
 
@@ -122,6 +130,17 @@ export class GameRenderer {
     this.fogUniforms = { uFogTex: { value: this.fogTex }, uMapSize: { value: new THREE.Vector2(w, h) } };
 
     const patch = (m: THREE.Material) => this.fogify(m);
+    // sombra macia sob as unidades
+    const bc = document.createElement("canvas");
+    bc.width = bc.height = 64;
+    const bctx = bc.getContext("2d")!;
+    const grad = bctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+    grad.addColorStop(0, "rgba(0,0,0,0.55)");
+    grad.addColorStop(0.55, "rgba(0,0,0,0.3)");
+    grad.addColorStop(1, "rgba(0,0,0,0)");
+    bctx.fillStyle = grad;
+    bctx.fillRect(0, 0, 64, 64);
+    this.blobMat = new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(bc), color: "#1a2030", transparent: true, depthWrite: false, opacity: 0.85 });
     const colorsOf = (t: Team) => game.colors(t);
     this.kit = new ModelKit(patch, colorsOf);
     this.ghostKit = new ModelKit((m) => {
@@ -131,15 +150,17 @@ export class GameRenderer {
     }, colorsOf);
 
     // luzes
-    const hemi = new THREE.HemisphereLight(...this.biome.hemi);
+    // luz clara de dia ensolarado, com sombras suaves e azuladas (visual de brinquedo)
+    const hemi = new THREE.HemisphereLight(this.biome.hemi[0], this.biome.hemi[1], this.biome.hemi[2] * 1.12);
     this.scene.add(hemi);
-    this.sun = new THREE.DirectionalLight(...this.biome.sun);
+    this.sun = new THREE.DirectionalLight(this.biome.sun[0], this.biome.sun[1] * 1.15);
     this.sun.castShadow = true;
     const sm = opts.lowPower ? 1024 : 2048;
     this.sun.shadow.mapSize.set(sm, sm);
     this.sun.shadow.bias = -0.0005;
     this.sun.shadow.normalBias = 0.02;
-    this.sun.shadow.radius = 3;
+    this.sun.shadow.radius = 4;
+    this.sun.shadow.intensity = 0.78;
     this.scene.add(this.sun);
     this.scene.add(this.sun.target);
 
@@ -155,6 +176,19 @@ export class GameRenderer {
     this.smoke = new ParticleSystem(2500, false);
     this.scene.add(this.smoke.points);
     this.scene.add(this.fire.points);
+
+    // setas de ordem desenhadas no chão
+    const ag = new THREE.BufferGeometry();
+    ag.setAttribute("position", new THREE.BufferAttribute(this.arrowPos, 3).setUsage(THREE.DynamicDrawUsage));
+    ag.setAttribute("color", new THREE.BufferAttribute(this.arrowCol, 3).setUsage(THREE.DynamicDrawUsage));
+    ag.setDrawRange(0, 0);
+    this.arrowMesh = new THREE.Mesh(
+      ag,
+      new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.85, depthWrite: false, side: THREE.DoubleSide }),
+    );
+    this.arrowMesh.frustumCulled = false;
+    this.arrowMesh.renderOrder = 3;
+    this.scene.add(this.arrowMesh);
 
     this.rallyFlag = this.makeFlag();
     this.rallyFlag.visible = false;
@@ -1004,13 +1038,18 @@ export class GameRenderer {
     this.scene.add(model.root);
     const r = UNITS[u.kind].radius;
     const ring = new THREE.Mesh(
-      this.ringFor(`u${r}`, () => new THREE.RingGeometry(r * 1.25, r * 1.25 + 0.05, 32).rotateX(-Math.PI / 2)),
+      this.ringFor(`u${r}`, () => new THREE.RingGeometry(r * 1.3, r * 1.3 + 0.075, 36).rotateX(-Math.PI / 2)),
       u.team === 0 ? this.ringMats.own : this.ringMats.enemy,
     );
     ring.position.y = 0.03;
     ring.visible = false;
     ring.renderOrder = 2;
     model.root.add(ring);
+    const blob = new THREE.Mesh(this.blobGeo, this.blobMat);
+    blob.scale.setScalar(r * (UNITS[u.kind].infantry ? 3.2 : 2.9));
+    blob.position.y = 0.022;
+    blob.renderOrder = 1;
+    model.root.add(blob);
     const barW = UNITS[u.kind].infantry ? 0.42 : 0.7;
     const { bar, fill } = this.makeBar(barW);
     let cargoBar: THREE.Mesh | null = null;
@@ -1020,7 +1059,7 @@ export class GameRenderer {
       cargoBar.renderOrder = 11;
       bar.add(cargoBar);
     }
-    return { kind: "unit", model, ring, bar, fill, cargoBar, barW };
+    return { kind: "unit", model, ring, bar, fill, cargoBar, barW, blob };
   }
 
   private createBuildingView(b: Building): BuildingView {
@@ -1028,6 +1067,7 @@ export class GameRenderer {
     model.root.userData.eid = b.id;
     model.root.position.set(b.tx + b.w / 2, 0, b.tz + b.h / 2);
     this.scene.add(model.root);
+    this.padQueue.push({ tx: b.tx, tz: b.tz, w: b.w, h: b.h });
     const key = `b${b.w}x${b.h}`;
     const ring = new THREE.Mesh(
       this.ringFor(key, () => {
@@ -1112,6 +1152,7 @@ export class GameRenderer {
         const alt = (0.3 + (AIR_ALT - 0.3) * (1 - Math.pow(1 - k, 3))) + Math.sin(t * 2.2 + u.id) * 0.05;
         m.root.position.y = alt;
         v.ring.position.y = -alt + 0.03;
+        v.blob.position.y = -alt + 0.022;
         const tilt = u.moving ? -0.18 : 0;
         m.body.rotation.z += (tilt - m.body.rotation.z) * Math.min(1, dt * 4);
         const spin = dt * (u.kind === "drone" ? 45 : 30);
@@ -1121,7 +1162,11 @@ export class GameRenderer {
         });
         barY = alt + m.height + 0.2;
       } else if (d.infantry) {
-        m.body.position.y = u.moving ? Math.abs(Math.sin(t * 13 + u.id)) * 0.035 : 0;
+        const ph = t * 12 + u.id;
+        m.body.position.y = u.moving ? Math.abs(Math.sin(ph)) * 0.03 : 0;
+        const swing = u.moving ? Math.sin(ph) * 0.65 : 0;
+        if (m.legs[0]) m.legs[0].rotation.z = swing;
+        if (m.legs[1]) m.legs[1].rotation.z = -swing;
       } else if (u.moving) {
         m.body.position.y = Math.sin(t * 22 + u.id) * 0.006;
         if (Math.random() < dt * 8) {
@@ -1339,10 +1384,10 @@ export class GameRenderer {
   }
 
   private tracer(x: number, y: number, z: number, tx: number, ty: number, tz: number) {
-    const n = 4;
+    const n = 6;
     for (let i = 0; i < n; i++) {
       const k = (i + Math.random()) / n;
-      this.fire.emit({ x: x + (tx - x) * k, y: y + (ty - y) * k, z: z + (tz - z) * k, life: 0.07, size0: 0.07, size1: 0.03, color: "#fff2a0" });
+      this.fire.emit({ x: x + (tx - x) * k, y: y + (ty - y) * k, z: z + (tz - z) * k, life: 0.09, size0: 0.1, size1: 0.03, color: "#fff6b8", color1: "#ffb020" });
     }
     this.fire.emit({ x: tx + (Math.random() - 0.5) * 0.2, y: ty, z: tz + (Math.random() - 0.5) * 0.2, life: 0.1, size0: 0.1, size1: 0.02, color: "#ffe08a" });
   }
@@ -1413,9 +1458,37 @@ export class GameRenderer {
 
   private flushScorch(dt: number) {
     this.scorchTimer -= dt;
-    if (this.scorchTimer > 0 || this.scorchQueue.length === 0) return;
+    if (this.scorchTimer > 0 || (this.scorchQueue.length === 0 && this.padQueue.length === 0)) return;
     this.scorchTimer = 0.5;
     const ctx = this.terrainCanvas.getContext("2d")!;
+    // pátio de concreto sob as construções, com faixas de sinalização
+    for (const p of this.padQueue) {
+      const m = 0.45;
+      const x = (p.tx - m) * 16;
+      const z = (p.tz - m) * 16;
+      const w = (p.w + m * 2) * 16;
+      const h = (p.h + m * 2) * 16;
+      ctx.save();
+      ctx.fillStyle = "rgba(70,70,64,0.22)";
+      ctx.beginPath();
+      ctx.roundRect(x - 3, z - 2, w + 6, h + 6, 10);
+      ctx.fill();
+      ctx.fillStyle = "#d9d5c8";
+      ctx.beginPath();
+      ctx.roundRect(x, z, w, h, 8);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(120,114,100,0.55)";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.strokeStyle = "rgba(240,190,40,0.85)";
+      ctx.lineWidth = 2.5;
+      ctx.setLineDash([7, 6]);
+      ctx.beginPath();
+      ctx.roundRect(x + 4, z + 4, w - 8, h - 8, 5);
+      ctx.stroke();
+      ctx.restore();
+    }
+    this.padQueue = [];
     for (const s of this.scorchQueue) {
       const px = s.x * 16;
       const pz = s.z * 16;
@@ -1516,6 +1589,91 @@ export class GameRenderer {
 
   // ------------------------------------------------------------ fantasma de construção
 
+  setDragArrow(a: { x0: number; z0: number; x1: number; z1: number; attack: boolean } | null) {
+    this.dragArrow = a;
+  }
+
+  // Agrupa as tropas selecionadas por destino e desenha uma seta por grupo.
+  private updateArrows() {
+    const g = this.game;
+    const arrows: { x0: number; z0: number; x1: number; z1: number; attack: boolean }[] = [];
+    if (this.dragArrow) arrows.push(this.dragArrow);
+    const groups = new Map<string, { sx: number; sz: number; dx: number; dz: number; n: number; attack: boolean }>();
+    for (const id of g.selected) {
+      const u = g.units.get(id);
+      if (!u || u.team !== 0) continue;
+      let dest: { x: number; z: number } | null = null;
+      let attack = false;
+      const t = g.get(u.targetId);
+      if (u.order === "attack" && t) {
+        dest = g.center(t);
+        attack = true;
+      } else if ((u.order === "move" || u.order === "attackMove") && u.goal) {
+        dest = u.goal;
+        attack = u.order === "attackMove";
+      }
+      if (!dest) continue;
+      const key = `${attack ? 1 : 0}:${Math.round(dest.x / 2.5)},${Math.round(dest.z / 2.5)}`;
+      const gr = groups.get(key) ?? { sx: 0, sz: 0, dx: 0, dz: 0, n: 0, attack };
+      gr.sx += u.x;
+      gr.sz += u.z;
+      gr.dx += dest.x;
+      gr.dz += dest.z;
+      gr.n++;
+      groups.set(key, gr);
+    }
+    for (const gr of groups.values()) arrows.push({ x0: gr.sx / gr.n, z0: gr.sz / gr.n, x1: gr.dx / gr.n, z1: gr.dz / gr.n, attack: gr.attack });
+    const P = this.arrowPos;
+    const C = this.arrowCol;
+    let v = 0;
+    const green = new THREE.Color("#5dff8a");
+    const red = new THREE.Color("#ff5a4a");
+    const put = (x: number, z: number, c: THREE.Color) => {
+      P[v * 3] = x;
+      P[v * 3 + 1] = 0.09;
+      P[v * 3 + 2] = z;
+      C[v * 3] = c.r;
+      C[v * 3 + 1] = c.g;
+      C[v * 3 + 2] = c.b;
+      v++;
+    };
+    for (const a of arrows.slice(0, 48)) {
+      const dx = a.x1 - a.x0;
+      const dz = a.z1 - a.z0;
+      const len = Math.hypot(dx, dz);
+      if (len < 0.9) continue;
+      const ux = dx / len;
+      const uz = dz / len;
+      const nx = -uz;
+      const nz = ux;
+      const c = a.attack ? red : green;
+      const w = 0.09;
+      const hw = 0.3;
+      const head = Math.min(0.6, len * 0.4);
+      const sx = a.x0 + ux * 0.45;
+      const sz = a.z0 + uz * 0.45;
+      const ex = a.x1 - ux * head;
+      const ez = a.z1 - uz * head;
+      // haste
+      put(sx + nx * w, sz + nz * w, c);
+      put(sx - nx * w, sz - nz * w, c);
+      put(ex + nx * w, ez + nz * w, c);
+      put(ex + nx * w, ez + nz * w, c);
+      put(sx - nx * w, sz - nz * w, c);
+      put(ex - nx * w, ez - nz * w, c);
+      // ponta
+      put(ex + nx * hw, ez + nz * hw, c);
+      put(ex - nx * hw, ez - nz * hw, c);
+      put(a.x1, a.z1, c);
+    }
+    const geo = this.arrowMesh.geometry;
+    geo.setDrawRange(0, v);
+    (geo.attributes.position as THREE.BufferAttribute).needsUpdate = true;
+    (geo.attributes.color as THREE.BufferAttribute).needsUpdate = true;
+    const m = this.arrowMesh.material as THREE.MeshBasicMaterial;
+    m.opacity = 0.7 + Math.sin(this.clock * 6) * 0.15;
+  }
+
   setGhost(kind: BuildingKind | null, tx: number, tz: number, valid: boolean) {
     if (!kind) {
       if (this.ghost) {
@@ -1567,6 +1725,7 @@ export class GameRenderer {
     }
     this.syncEntities(dt);
     this.syncProjectiles();
+    this.updateArrows();
     for (let i = this.pings.length - 1; i >= 0; i--) {
       const p = this.pings[i];
       p.t += dt;

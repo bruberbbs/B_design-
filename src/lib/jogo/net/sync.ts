@@ -41,7 +41,7 @@ type Cmd =
   | { c: "repair"; id: number }
   | { c: "primary"; id: number };
 
-type UnitRow = [number, number, Team, number, number, number, number, number, number, number, number, number, number, number];
+type UnitRow = [number, number, Team, number, number, number, number, number, number, number, number, number, number, number, number, number, number];
 type BuildingRow = [number, number, Team, number, number, number, number, number, number, number, number, number];
 type ProjRow = [number, number, number, number, number, number, number, number, number, number, number];
 
@@ -195,6 +195,9 @@ export class HostLink {
         r2(u.bornAt),
         ORDERS.indexOf(u.order),
         HSTATES.indexOf(u.hState),
+        u.goal ? r2(u.goal.z) : -1,
+        u.goal ? r2(u.goal.x) : -1,
+        u.targetId ?? -1,
       ]),
       b: [...g.buildings.values()].map((b) => [
         b.id,
@@ -332,7 +335,7 @@ export class GuestLink {
     // unidades
     const seenU = new Set<number>();
     for (const r of s.u) {
-      const [id, k, team, x, z, ang, tur, hp, fl, cargo, rec, born, ord, hs] = r;
+      const [id, k, team, x, z, ang, tur, hp, fl, cargo, rec, born, ord, hs, gx, gz, tid] = r;
       let u = g.units.get(id);
       if (!u) {
         u = g.addUnit(team, UNIT_KINDS[k], x, z);
@@ -350,6 +353,8 @@ export class GuestLink {
       u.bornAt = born;
       u.order = ORDERS[ord] ?? "idle";
       u.hState = HSTATES[hs] ?? "idle";
+      u.goal = gx >= 0 ? { x: gx, z: gz } : null;
+      u.targetId = tid >= 0 ? tid : null;
       seenU.add(id);
     }
     for (const id of [...g.units.keys()]) {
