@@ -22,6 +22,7 @@ const FRAG = /* glsl */ `
 varying vec3 vColor;
 varying float vAlpha;
 uniform float uSoft;
+uniform float uBoost;
 #ifdef USE_TEX
 uniform sampler2D uTex;
 #endif
@@ -36,7 +37,7 @@ void main() {
   a = t.a * vAlpha;
   col *= mix(0.75, 1.15, t.r);
 #endif
-  gl_FragColor = vec4(col, a);
+  gl_FragColor = vec4(col * uBoost, a);
 }
 `;
 
@@ -105,7 +106,7 @@ export class ParticleSystem {
     this.material = new THREE.ShaderMaterial({
       vertexShader: VERT,
       fragmentShader: FRAG,
-      uniforms: { uScale: { value: 40 }, uSoft: { value: additive ? 0.0 : 0.2 }, uTex: { value: tex ?? null } },
+      uniforms: { uScale: { value: 40 }, uSoft: { value: additive ? 0.0 : 0.2 }, uTex: { value: tex ?? null }, uBoost: { value: 1 } },
       defines: tex ? { USE_TEX: "" } : {},
       transparent: true,
       depthWrite: false,

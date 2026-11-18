@@ -690,7 +690,7 @@ export class GameRenderer {
       const trunks = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.06, 0.09, 0.4, 8), trunkMat, trees.length);
       const round = trees.filter((t) => !t.pine);
       const pines = trees.filter((t) => t.pine);
-      const crowns = new THREE.InstancedMesh(roughen(new THREE.IcosahedronGeometry(0.34, 3), 0.07, 3), crownMat, round.length * 2);
+      const crowns = new THREE.InstancedMesh(roughen(new THREE.IcosahedronGeometry(0.34, 2), 0.06, 3), crownMat, round.length * 2);
       const pineGeo = roughen(new THREE.ConeGeometry(0.3, 0.7, 14, 4), 0.045, 7);
       const pineMesh = new THREE.InstancedMesh(pineGeo, crownMat, pines.length * 2);
       trees.forEach((t, i) => {
@@ -705,7 +705,7 @@ export class GameRenderer {
         dummy.scale.set(t.s, t.s * 0.95, t.s);
         dummy.updateMatrix();
         crowns.setMatrixAt(i * 2, dummy.matrix);
-        col.setHSL(0.21 + rnd() * 0.07, 0.42, 0.2 + rnd() * 0.07);
+        col.setHSL(0.22 + rnd() * 0.06, 0.5, 0.11 + rnd() * 0.05);
         crowns.setColorAt(i * 2, col);
         dummy.position.set(t.x + 0.08, 0.82 * t.s, t.z - 0.05);
         dummy.scale.setScalar(t.s * 0.62);
@@ -719,7 +719,7 @@ export class GameRenderer {
         dummy.scale.setScalar(t.s);
         dummy.updateMatrix();
         pineMesh.setMatrixAt(i * 2, dummy.matrix);
-        col.setHSL(0.33 + rnd() * 0.05, 0.38, 0.17 + rnd() * 0.05);
+        col.setHSL(0.34 + rnd() * 0.05, 0.45, 0.08 + rnd() * 0.04);
         pineMesh.setColorAt(i * 2, col);
         dummy.position.set(t.x, 0.92 * t.s, t.z);
         dummy.scale.setScalar(t.s * 0.7);
@@ -829,7 +829,7 @@ export class GameRenderer {
           }
         } else {
           // cacto
-          const g = hsl(0.3 + rnd() * 0.04, 0.38, 0.38 + rnd() * 0.08);
+          const g = hsl(0.3 + rnd() * 0.04, 0.35, 0.22 + rnd() * 0.06);
           add("cactus", () => new THREE.CapsuleGeometry(0.1, 0.4, 4, 10), { p: [t.x, 0.3 * s, t.z], s: [s, s, s], c: g });
           const arms = 1 + Math.floor(rnd() * 2);
           for (let k = 0; k < arms; k++) {
@@ -844,7 +844,7 @@ export class GameRenderer {
       } else if (style === "snow") {
         // pinheiro nevado: três cones verdes e ponta branca
         add("snowTrunk", () => new THREE.CylinderGeometry(0.05, 0.07, 0.3, 7), { p: [t.x, 0.15 * s, t.z], s: [s, s, s], c: "#6b4b36" });
-        const base = hsl(0.38 + rnd() * 0.04, 0.35, 0.24 + rnd() * 0.06);
+        const base = hsl(0.38 + rnd() * 0.04, 0.35, 0.12 + rnd() * 0.05);
         for (let k = 0; k < 3; k++) {
           const c = base.clone().lerp(new THREE.Color("#ffffff"), k * 0.18);
           add("snowCone", () => new THREE.ConeGeometry(0.32, 0.5, 10), { p: [t.x, (0.42 + k * 0.24) * s, t.z], s: [s * (1 - k * 0.24), s, s * (1 - k * 0.24)], c });
@@ -995,6 +995,8 @@ export class GameRenderer {
       this.sun.shadow.map = null;
     }
     if (q === "max" && !this.composer) this.buildComposer();
+    // com pós-processamento, o fogo fica acima do limiar do brilho
+    this.fire.material.uniforms.uBoost.value = q === "max" ? 3.2 : 1;
     if (q !== "max" && this.composer) {
       this.composer.dispose();
       this.composer = null;
@@ -1021,7 +1023,7 @@ export class GameRenderer {
     gtao.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 6, rings: 2, samples: 12 });
     comp.addPass(gtao);
     // só o que brilha de verdade (fogo, explosões, lâmpadas) passa do limiar
-    const bloom = new UnrealBloomPass(new THREE.Vector2(this.width, this.height), 0.6, 0.45, 1.6);
+    const bloom = new UnrealBloomPass(new THREE.Vector2(this.width, this.height), 0.7, 0.4, 2.6);
     comp.addPass(bloom);
     comp.addPass(new OutputPass());
     const smaa = new SMAAPass(this.width * this.renderer.getPixelRatio(), this.height * this.renderer.getPixelRatio());
