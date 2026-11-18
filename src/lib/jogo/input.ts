@@ -4,6 +4,7 @@
 import type { Sfx } from "./audio";
 import { BUILDINGS, type BuildingKind } from "./defs";
 import type { Entity, Game } from "./game";
+import type { Orders } from "./orders";
 import type { GameRenderer } from "./render/scene";
 
 export interface InputMode {
@@ -49,6 +50,7 @@ export class InputController {
     private game: Game,
     private r: GameRenderer,
     private hooks: InputHooks,
+    private orders: Orders,
   ) {
     const on = <K extends keyof HTMLElementEventMap>(el: HTMLElement | Window, ev: K, fn: (e: HTMLElementEventMap[K]) => void, opts?: AddEventListenerOptions) => {
       el.addEventListener(ev, fn as EventListener, opts);
@@ -185,7 +187,9 @@ export class InputController {
   }
 
   private tryPlace(tx: number, tz: number) {
-    if (this.game.placeStructure(0, tx, tz)) {
+    // valida localmente (em rede o anfitrião confirma)
+    const kind = this.hooks.getMode().placing;
+    if (kind && this.game.canPlace(0, kind, tx, tz) && this.orders.place(tx, tz)) {
       this.hooks.setMode({ placing: null });
       this.touchGhost = null;
       return true;
@@ -218,7 +222,7 @@ export class InputController {
     const mode = this.hooks.getMode();
     const target = this.game.get(id);
     const attack = !!target && target.team !== 0;
-    this.game.smartCommand(0, w.x, w.z, id, mode.attackMove);
+    this.orders.smart([...this.game.selected], w.x, w.z, id, mode.attackMove);
     this.r.ping(target ? this.game.center(target).x : w.x, target ? this.game.center(target).z : w.z, attack || mode.attackMove);
     if (mode.attackMove) this.hooks.setMode({ attackMove: false });
   }
@@ -340,7 +344,7 @@ export class InputController {
       return;
     }
     if (k === "s" && !e.ctrlKey && !e.metaKey) {
-      this.game.issueStop([...this.game.selected].filter((id) => this.game.units.get(id)?.team === 0));
+      this.orders.stop([...this.game.selected]);
       return;
     }
     if (k === "a" && !e.ctrlKey && !e.metaKey) {

@@ -20,7 +20,7 @@ export function audioContext() {
   return shared;
 }
 
-const PREFS_KEY = "mare-de-aco:audio:v1";
+const PREFS_KEY = "force-one:audio:v1";
 
 export function loadAudioPrefs(): { sound: boolean; music: boolean } {
   try {

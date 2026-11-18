@@ -158,7 +158,7 @@ export function snapshot(g: Game): HudSnapshot {
         repairing: e.repairing,
         canSell: e.team === 0 && e.kind !== "hq",
         canPrimary: e.team === 0 && multiple,
-        isPrimary: g.primary[p] === e.id,
+        isPrimary: g.primary[0][p] === e.id,
         status: e.team !== 0 ? g.colors(e.team).name : BUILDINGS[e.kind].desc,
       };
     }

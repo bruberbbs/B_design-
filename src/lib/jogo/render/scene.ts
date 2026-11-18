@@ -176,7 +176,8 @@ export class GameRenderer {
       cz += (b.tz + b.h / 2) * 3;
       n += 3;
     }
-    this.target.set(cx / n, 0, cz / n);
+    if (n > 0) this.target.set(cx / n, 0, cz / n);
+    else this.target.set(game.map.starts[0].x + 2, 0, game.map.starts[0].z + 1);
     this.updateFog(1, true);
   }
 

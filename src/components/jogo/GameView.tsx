@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Map as MapIcon, Menu, Pause } from "lucide-react";
+import { Map as MapIcon, Menu, Pause, Wifi, WifiOff } from "lucide-react";
 import { AIController } from "@/lib/jogo/ai";
 import { audioContext, loadAudioPrefs, saveAudioPrefs, Sfx } from "@/lib/jogo/audio";
 import { Music, MusicDirector } from "@/lib/jogo/music";
@@ -10,6 +10,9 @@ import { Game } from "@/lib/jogo/game";
 import { drawMinimap, minimapToWorld, snapshot, type HudSnapshot, type ItemKind } from "@/lib/jogo/hud";
 import { InputController, type InputMode } from "@/lib/jogo/input";
 import type { MapId } from "@/lib/jogo/map";
+import type { Room } from "@/lib/jogo/net/room";
+import { GuestLink, HostLink, prepareReplica } from "@/lib/jogo/net/sync";
+import { LocalOrders, type Orders } from "@/lib/jogo/orders";
 import { GameRenderer } from "@/lib/jogo/render/scene";
 import { renderThumbnails } from "@/lib/jogo/render/thumbnails";
 import { cn } from "@/lib/utils";
@@ -18,7 +21,9 @@ import { EndScreen, PauseMenu } from "./Overlays";
 
 interface Engine {
   game: Game;
-  ai: AIController;
+  ai: AIController | null;
+  orders: Orders;
+  link: HostLink | GuestLink | null;
   renderer: GameRenderer;
   input: InputController;
   sfx: Sfx;
@@ -39,11 +44,13 @@ interface GameViewProps {
   difficulty: Difficulty;
   faction: Faction;
   mapId: MapId;
+  net?: { role: "host" | "guest"; room: Room } | null;
   onRestart: () => void;
   onMenu: () => void;
 }
 
-export function GameView({ difficulty, faction, mapId, onRestart, onMenu }: GameViewProps) {
+export function GameView({ difficulty, faction, mapId, net, onRestart, onMenu }: GameViewProps) {
+  const online = !!net;
   const rootRef = useRef<HTMLDivElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -62,6 +69,7 @@ export function GameView({ difficulty, faction, mapId, onRestart, onMenu }: Game
   const [touch, setTouch] = useState(false);
   const [miniOpen, setMiniOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [netInfo, setNetInfo] = useState<{ rtt: number; lost: boolean; synced: boolean }>({ rtt: 0, lost: false, synced: !net || net.role === "host" });
 
   const setMode = useCallback((patch: Partial<InputMode>) => {
     modeRef.current = { ...modeRef.current, ...patch };
@@ -70,7 +78,8 @@ export function GameView({ difficulty, faction, mapId, onRestart, onMenu }: Game
 
   const openMenu = useCallback((open: boolean) => {
     const e = engineRef.current;
-    if (e && e.game.phase === "playing") e.game.paused = open;
+    // em rede a partida não pausa
+    if (e && e.game.phase === "playing" && !e.link) e.game.paused = open;
     menuRef.current = open;
     setMenu(open);
   }, []);
@@ -86,6 +95,8 @@ export function GameView({ difficulty, faction, mapId, onRestart, onMenu }: Game
     const coarse = window.matchMedia("(pointer: coarse)").matches;
     const lowPower = coarse || window.innerWidth < 900;
     const game = new Game(difficulty, faction, mapId);
+    // convidado: réplica espelhada; o anfitrião envia o estado
+    if (net?.role === "guest") prepareReplica(game);
     let renderer: GameRenderer;
     try {
       renderer = new GameRenderer(canvas, game, { lowPower });
@@ -95,15 +106,21 @@ export function GameView({ difficulty, faction, mapId, onRestart, onMenu }: Game
     }
     const sfx = new Sfx();
     sfx.enabled = audioRef.current.sound;
-    const ai = new AIController(game, 1);
+    const link = net ? (net.role === "host" ? new HostLink(game, net.room) : new GuestLink(game, net.room)) : null;
+    const ai = net ? null : new AIController(game, 1);
+    const orders: Orders = link instanceof GuestLink ? link.orders : new LocalOrders(game, 0);
+    const offClose = net?.room.onClose(() => {
+      if (link instanceof HostLink) game.paused = true;
+      setNetInfo((n) => ({ ...n, lost: true }));
+    });
     const input = new InputController(canvas, game, renderer, {
       getMode: () => modeRef.current,
       setMode,
       setBox,
       togglePause: () => openMenu(!menuRef.current),
       sfx,
-    });
-    const engine: Engine = { game, ai, renderer, input, sfx, music: null };
+    }, orders);
+    const engine: Engine = { game, ai, orders, link, renderer, input, sfx, music: null };
     engineRef.current = engine;
     const director = new MusicDirector();
     let lastPaused = false;
@@ -126,10 +143,15 @@ export function GameView({ difficulty, faction, mapId, onRestart, onMenu }: Game
     const loop = (now: number) => {
       const dt = Math.min(0.1, (now - last) / 1000);
       last = now;
-      game.step(dt);
-      ai.update(dt);
+      if (link instanceof GuestLink) link.frame(dt);
+      else game.step(dt);
+      ai?.update(dt);
       input.update(dt);
       const events = game.drainEvents();
+      if (link instanceof HostLink) {
+        link.collect(events);
+        link.tick(now);
+      }
       renderer.handleEvents(events);
       sfx.handle(events, near);
       // trilha sonora: começa assim que o áudio estiver liberado
@@ -154,7 +176,7 @@ export function GameView({ difficulty, faction, mapId, onRestart, onMenu }: Game
           music.ending(game.phase === "victory");
         }
       }
-      for (const ev of events) if (ev.type === "msg") pushToast(ev.text, ev.tone);
+      for (const ev of events) if (ev.type === "msg" && ev.team === 0) pushToast(ev.text, ev.tone);
       renderer.render(game.paused || game.phase !== "playing" ? dt * 0.25 : dt * game.speed);
       raf = requestAnimationFrame(loop);
     };
@@ -162,6 +184,10 @@ export function GameView({ difficulty, faction, mapId, onRestart, onMenu }: Game
 
     const hudTimer = window.setInterval(() => {
       setHud(snapshot(game));
+      if (link) {
+        const synced = link instanceof GuestLink ? link.ready : true;
+        setNetInfo((n) => (n.rtt === link.rtt && n.synced === synced ? n : { ...n, rtt: link.rtt, synced }));
+      }
       setToasts((prev) => (prev.length && performance.now() - prev[0].at > 4500 ? prev.slice(1) : prev));
     }, 120);
 
@@ -197,11 +223,13 @@ export function GameView({ difficulty, faction, mapId, onRestart, onMenu }: Game
       window.clearTimeout(thumbTimer);
       ro.disconnect();
       input.dispose();
+      link?.dispose();
+      offClose?.();
       engine.music?.dispose();
       renderer.dispose();
       engineRef.current = null;
     };
-  }, [difficulty, faction, mapId, setMode, openMenu, pushToast]);
+  }, [difficulty, faction, mapId, net, setMode, openMenu, pushToast]);
 
   // ------------------------------------------------------------ ações da interface
 
@@ -221,13 +249,13 @@ export function GameView({ difficulty, faction, mapId, onRestart, onMenu }: Game
         return;
       }
     }
-    if (e.game.queueProduction(0, kind)) e.sfx.ui();
+    if (e.orders.queue(kind)) e.sfx.ui();
   };
 
   const onItemCancel = (kind: ItemKind) => {
     const e = engineRef.current;
     if (!e) return;
-    if (e.game.cancelProduction(0, kind)) {
+    if (e.orders.cancel(kind)) {
       e.sfx.ui();
       if (modeRef.current.placing === kind) setMode({ placing: null });
     }
@@ -244,14 +272,13 @@ export function GameView({ difficulty, faction, mapId, onRestart, onMenu }: Game
   const ownSelectedUnits = (e: Engine) => [...e.game.selected].filter((id) => e.game.units.get(id)?.team === 0);
 
   const actions = {
-    onSell: (id: number) => withEngine((e) => e.game.sell(id))(),
-    onRepair: (id: number) => withEngine((e) => e.game.toggleRepair(id))(),
+    onSell: (id: number) => withEngine((e) => e.orders.sell(id))(),
+    onRepair: (id: number) => withEngine((e) => e.orders.repair(id))(),
     onPrimary: (id: number) =>
       withEngine((e) => {
-        const b = e.game.buildings.get(id);
-        if (b) e.game.primary[b.kind === "barracks" ? "infantry" : b.kind === "helipad" ? "air" : "vehicle"] = id;
+        e.orders.primary(id);
       })(),
-    onStop: withEngine((e) => e.game.issueStop(ownSelectedUnits(e))),
+    onStop: withEngine((e) => e.orders.stop(ownSelectedUnits(e))),
     onClear: withEngine((e) => e.game.selected.clear()),
     onSelectKind: (k: string) =>
       withEngine((e) => {
@@ -332,6 +359,11 @@ export function GameView({ difficulty, faction, mapId, onRestart, onMenu }: Game
           <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between gap-2 p-2 pt-[max(0.5rem,env(safe-area-inset-top))] lg:hidden">
             <div className="pointer-events-auto rounded-2xl bg-[#0d1322]/80 p-1 shadow-lg ring-1 ring-white/10 backdrop-blur-md">
               <ResourceBar hud={hud} compact />
+              {online && (
+                <p className="px-2 pb-0.5 pt-1 font-mono text-[10px]">
+                  <NetBadge rtt={netInfo.rtt} lost={netInfo.lost} />
+                </p>
+              )}
             </div>
             <div className="pointer-events-auto flex gap-1.5">
               <button
@@ -446,8 +478,11 @@ export function GameView({ difficulty, faction, mapId, onRestart, onMenu }: Game
         <aside className="hidden w-[300px] shrink-0 flex-col gap-3 overflow-y-auto border-l border-white/10 bg-gradient-to-b from-[#111a2e] to-[#0b1120] p-3 lg:flex">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-sm font-black tracking-[0.18em] text-white">MARÉ DE AÇO</h1>
-              <p className="font-mono text-[11px] text-white/45">{formatTime(hud.time)}</p>
+              <h1 className="text-sm font-black tracking-[0.18em] text-white">FORCE ONE</h1>
+              <p className="font-mono text-[11px] text-white/45">
+                {formatTime(hud.time)}
+                {online && <NetBadge rtt={netInfo.rtt} lost={netInfo.lost} />}
+              </p>
             </div>
             <button onClick={() => openMenu(true)} className="flex items-center gap-1.5 rounded-xl bg-white/8 px-3 py-2 text-xs font-semibold ring-1 ring-white/10 hover:bg-white/15">
               <Menu className="size-4" /> Menu
@@ -475,6 +510,7 @@ export function GameView({ difficulty, faction, mapId, onRestart, onMenu }: Game
       {menu && hud && (
         <PauseMenu
           speed={hud.speed}
+          online={online}
           sound={audio.sound}
           music={audio.music}
           onSpeed={setSpeed}
@@ -485,7 +521,36 @@ export function GameView({ difficulty, faction, mapId, onRestart, onMenu }: Game
           onQuit={onMenu}
         />
       )}
-      {hud && hud.phase !== "playing" && <EndScreen hud={hud} onRestart={onRestart} onMenu={onMenu} />}
+      {hud && hud.phase !== "playing" && <EndScreen hud={hud} online={online} onRestart={onRestart} onMenu={onMenu} />}
+      {online && !netInfo.synced && !netInfo.lost && (
+        <div className="fixed inset-0 z-20 grid place-items-center bg-[#0a0e18]/90 text-center">
+          <div className="flex flex-col items-center gap-3">
+            <div className="size-10 animate-spin rounded-full border-4 border-white/15 border-t-sky-400" />
+            <p className="text-sm text-white/70">Sincronizando com o anfitrião…</p>
+          </div>
+        </div>
+      )}
+      {online && netInfo.lost && hud?.phase === "playing" && (
+        <div className="fixed inset-0 z-30 grid place-items-center bg-black/65 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-xs rounded-3xl bg-[#111a2e] p-6 text-center ring-1 ring-white/10">
+            <WifiOff className="mx-auto mb-3 size-10 text-red-300" />
+            <h2 className="text-xl font-black">Conexão perdida</h2>
+            <p className="mt-1 text-sm text-white/60">O outro aparelho saiu da partida ou a rede caiu.</p>
+            <button onClick={onMenu} className="mt-5 w-full rounded-2xl bg-sky-500 py-3 font-bold">
+              Voltar ao menu
+            </button>
+          </div>
+        </div>
+      )}
     </div>
+  );
+}
+
+function NetBadge({ rtt, lost }: { rtt: number; lost: boolean }) {
+  return (
+    <span className={cn("ml-2 inline-flex items-center gap-1", lost ? "text-red-300" : "text-emerald-300")}>
+      {lost ? <WifiOff className="size-3" /> : <Wifi className="size-3" />}
+      {lost ? "sem conexão" : rtt ? `${rtt} ms` : "em rede"}
+    </span>
   );
 }

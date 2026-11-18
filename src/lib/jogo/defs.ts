@@ -1,4 +1,4 @@
-// Regras do jogo "Maré de Aço": estatísticas de unidades, construções e armas.
+// Regras do jogo "Force One": estatísticas de unidades, construções e armas.
 
 export type Team = 0 | 1; // 0 = jogador, 1 = IA
 

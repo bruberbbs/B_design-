@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { JogoClient } from "@/components/jogo/JogoClient";
 
 export const metadata: Metadata = {
-  title: "Maré de Aço",
+  title: "Force One",
   description: "Jogo de estratégia em tempo real: colete cristais, escolha entre duas facções, construa sua base e derrote o exército rival.",
 };
 

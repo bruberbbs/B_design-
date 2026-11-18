@@ -26,15 +26,16 @@ Ferramenta web para **estudo de viabilidade de lotes** em um mapa 3D: clique em 
 | --- | --- |
 | ![Análise solar com sombras](docs/screenshots/analise-solar.png) | ![Estudo com dois lotes somados](docs/screenshots/varios-lotes.png) |
 
-## Jogo: Maré de Aço
+## Jogo: Force One
 
-Em <http://localhost:3000/jogo> há também um jogo de **estratégia em tempo real** em 3D, com visual arredondado. Na tela inicial você escolhe sua facção — **Coalizão Aurora** (azul) ou **Legião Escarlate** (vermelha) — e o computador comanda a outra.
+Em <http://localhost:3000/jogo> há também **Force One**, um jogo de **estratégia em tempo real** em 3D, com visual arredondado. Na tela inicial você escolhe sua facção — **Coalizão Aurora** (azul) ou **Legião Escarlate** (vermelha) — e joga **contra o computador** ou **em rede contra outro aparelho**.
 
 ![Escolha de facção e mapa](docs/screenshots/jogo-faccoes.png)
 
-![Base do jogador em Maré de Aço](docs/screenshots/jogo-base.png)
+![Base do jogador em Force One](docs/screenshots/jogo-base.png)
 
 - **Economia**: Usinas geram energia; a Refinaria traz um Coletor que busca cristais dourados e os converte em créditos. Com energia baixa a produção fica lenta e torres e radar desligam.
+- **Jogo em rede (2 jogadores)**: em **Em rede → Criar sala**, o jogo mostra um código de 4 letras, um QR code e um botão para compartilhar o link. No outro aparelho, basta escanear o QR, abrir o link ou digitar o código em **Em rede → Entrar**. Quem cria escolhe o mapa e a facção; o adversário fica com a outra. Cada um vê a própria base embaixo.
 - **Mapas**: quatro paisagens, todas espelhadas para ser justo com os dois lados, com prévia na tela inicial:
   - **Vale Verde** — campos e bosques cortados por um rio com três vaus.
   - **Dunas de Âmbar** — deserto com mesetas e cânions, oásis com palmeiras, cactos, poeira ao vento e cristais ricos no centro.
@@ -66,6 +67,22 @@ Em <http://localhost:3000/jogo> há também um jogo de **estratégia em tempo re
 | Combate | Celular |
 | --- | --- |
 | ![Combate perto da base inimiga](docs/screenshots/jogo-combate.png) | ![Jogo no celular](docs/screenshots/jogo-celular.png) |
+
+### Como funciona o jogo em rede
+
+<img src="docs/screenshots/jogo-sala.png" alt="Sala criada com código e QR code" width="260" />
+
+- Os aparelhos se conectam **direto um ao outro** (WebRTC, via [PeerJS](https://peerjs.com/)). O servidor público gratuito do PeerJS só serve para os dois se encontrarem; os dados da partida não passam por ele. Para redes mais restritas (como 4G), o PeerJS usa servidores de retransmissão (TURN) próprios.
+- O aparelho que cria a sala é o **anfitrião**: ele roda a simulação e envia o estado ~10 vezes por segundo; o convidado mostra uma réplica suavizada e envia as ordens. Assim não há dessincronia entre navegadores diferentes (iPhone × Android).
+- Em rede a partida não pausa. Se um aparelho sair, fechar a aba ou ficar 10 s sem responder (por exemplo, com a tela bloqueada), o outro vê "Conexão perdida".
+- Para usar um servidor de sinalização próprio em vez do público, rode um [PeerServer](https://github.com/peers/peerjs-server) e defina, no build:
+
+  ```bash
+  NEXT_PUBLIC_PEER_HOST=salas.seudominio.com
+  NEXT_PUBLIC_PEER_PORT=443
+  NEXT_PUBLIC_PEER_PATH=/
+  NEXT_PUBLIC_PEER_SECURE=true
+  ```
 
 ## Como rodar
 
@@ -131,8 +148,8 @@ src/
     city.ts               # dados da cidade e do terreno
     zoning.ts             # parâmetros de zoneamento
     study.ts              # cálculos do estudo e da insolação
-  app/jogo/page.tsx       # rota do jogo Maré de Aço
-  components/jogo/        # interface do jogo (HUD, menus, painéis)
+  app/jogo/page.tsx       # rota do jogo Force One
+  components/jogo/        # interface do jogo (HUD, menus, painéis, salas em rede)
   lib/jogo/
     defs.ts               # regras: unidades, construções, armas, dificuldades
     map.ts / path.ts      # mapas (layouts e gerador simétrico) e A*
@@ -140,6 +157,9 @@ src/
     game.ts               # simulação (economia, produção, combate, visão)
     ai.ts                 # IA inimiga
     input.ts / hud.ts     # controles e dados da interface/minimapa
+    orders.ts             # ordens do jogador (locais ou enviadas pela rede)
+    net/room.ts           # salas: código, conexão WebRTC (PeerJS), vigia de queda
+    net/sync.ts           # anfitrião autoritativo: estado espelhado e réplica do convidado
     audio.ts              # efeitos sonoros sintetizados
     music.ts              # trilha sonora adaptativa (sequenciador + sintetizadores)
     render/               # cena three.js, modelos 3D, partículas e ícones

@@ -144,7 +144,7 @@ export type GameEvent =
   | { type: "sold"; x: number; z: number; w: number; h: number }
   | { type: "unitReady"; team: Team }
   | { type: "structureReady"; team: Team }
-  | { type: "msg"; text: string; tone: "info" | "warn" | "good" }
+  | { type: "msg"; text: string; tone: "info" | "warn" | "good"; team: Team }
   | { type: "click" };
 
 export type Phase = "playing" | "victory" | "defeat";
@@ -195,12 +195,14 @@ export class Game {
   visVersion = 0;
   speed = 1;
   paused = false;
-  primary: Partial<Record<Producer, number>> = {};
+  primary: [Partial<Record<Producer, number>>, Partial<Record<Producer, number>>] = [{}, {}];
+  // times comandados por pessoas (recebem avisos); em rede os dois são humanos
+  human: [boolean, boolean] = [true, false];
   private visTimer = 0;
   private powerTimer = 0;
   private oreTimer = 0;
   private endTimer = 0;
-  private airAlerted = false;
+  private airAlerted: [boolean, boolean] = [false, false];
 
   factions: [Faction, Faction];
 
@@ -494,15 +496,15 @@ export class Game {
           if (p === "structure") {
             ts.ready = item.kind as BuildingKind;
             q.shift();
-            if (team === 0) {
+            if (this.human[team]) {
               this.events.push({ type: "structureReady", team });
-              this.msg("Construção pronta — escolha onde posicionar", "good");
+              this.msg("Construção pronta — escolha onde posicionar", "good", team);
             }
           } else {
             if (this.spawnProduced(team, item.kind as UnitKind)) {
               q.shift();
               ts.stats.built++;
-              if (team === 0) this.events.push({ type: "unitReady", team });
+              if (this.human[team]) this.events.push({ type: "unitReady", team });
             }
           }
         }
@@ -514,8 +516,8 @@ export class Game {
     const d = UNITS[kind];
     const fk = PRODUCER_BUILDING[d.producer];
     let src: Building | undefined;
-    const prim = this.primary[d.producer];
-    if (team === 0 && prim) {
+    const prim = this.primary[team][d.producer];
+    if (prim) {
       const b = this.buildings.get(prim);
       if (b && b.team === team && b.kind === fk) src = b;
     }
@@ -799,8 +801,8 @@ export class Game {
   }
 
   // Comando "inteligente" do jogador: decide entre mover, atacar, coletar ou definir ponto de reunião.
-  smartCommand(team: Team, x: number, z: number, targetId: number | null, attackMove = false) {
-    const sel = [...this.selected].map((id) => this.get(id)).filter((e): e is Entity => !!e && e.team === team);
+  smartCommand(team: Team, ids: number[], x: number, z: number, targetId: number | null, attackMove = false) {
+    const sel = ids.map((id) => this.get(id)).filter((e): e is Entity => !!e && e.team === team);
     if (!sel.length) return;
     x = Math.max(0.5, Math.min(this.map.w - 0.5, x));
     z = Math.max(0.5, Math.min(this.map.h - 0.5, z));
@@ -815,9 +817,9 @@ export class Game {
       }
       return;
     }
-    const ids = units.map((u) => u.id);
+    const unitIds = units.map((u) => u.id);
     if (target && target.team !== team) {
-      this.issueAttack(ids, target.id);
+      this.issueAttack(unitIds, target.id);
       return;
     }
     const harvesters = units.filter((u) => u.kind === "harvester");
@@ -855,11 +857,11 @@ export class Game {
     const ts = this.teams[target.team];
     const c = this.center(target);
     ts.lastAttackPos = { x: c.x, z: c.z, t: this.time };
-    if (target.team === 0 && this.time - ts.lastAttackAlert > 20) {
+    if (this.human[target.team] && this.time - ts.lastAttackAlert > 20) {
       const base = target.type === "building" || target.kind === "harvester";
       if (base) {
         ts.lastAttackAlert = this.time;
-        this.msg(target.kind === "harvester" ? "Coletor sob ataque!" : "Nossa base está sob ataque!", "warn");
+        this.msg(target.kind === "harvester" ? "Coletor sob ataque!" : "Nossa base está sob ataque!", "warn", target.team);
       }
     }
     // retaliação
@@ -887,13 +889,14 @@ export class Game {
       this.removeBuilding(e);
       this.events.push({ type: "buildingDeath", x: e.tx + e.w / 2, z: e.tz + e.h / 2, w: e.w, h: e.h });
       this.updatePower();
-      if (e.team === 0) this.msg(`${BUILDINGS[e.kind].name} destruído`, "warn");
-      else this.msg(`Estrutura inimiga destruída: ${BUILDINGS[e.kind].name}`, "good");
+      this.msg(`${BUILDINGS[e.kind].name} destruído`, "warn", e.team);
+      this.msg(`Estrutura inimiga destruída: ${BUILDINGS[e.kind].name}`, "good", e.team === 0 ? 1 : 0);
     }
   }
 
-  msg(text: string, tone: "info" | "warn" | "good" = "info") {
-    this.events.push({ type: "msg", text, tone });
+  msg(text: string, tone: "info" | "warn" | "good" = "info", team: Team = 0) {
+    if (!this.human[team]) return;
+    this.events.push({ type: "msg", text, tone, team });
   }
 
   // ---------------------------------------------------------------- armas
@@ -1489,7 +1492,7 @@ export class Game {
       ts.powerProd = Math.round(prod);
       ts.powerUse = use;
       ts.lowPower = use > prod;
-      if (team === 0 && ts.lowPower && !was) this.msg("Energia baixa! Construa mais usinas.", "warn");
+      if (ts.lowPower && !was) this.msg("Energia baixa! Construa mais usinas.", "warn", team);
     }
   }
 
@@ -1519,11 +1522,12 @@ export class Game {
         if (b.team === team) mark(b.tx + b.w / 2, b.tz + b.h / 2, BUILDINGS[b.kind].sight + Math.max(b.w, b.h) / 2);
     }
     this.visVersion++;
-    if (!this.airAlerted) {
+    for (const viewer of [0, 1] as Team[]) {
+      if (this.airAlerted[viewer] || !this.human[viewer]) continue;
       for (const u of this.units.values()) {
-        if (u.team === 1 && UNITS[u.kind].air && this.teams[0].visible[this.tileIndex(u.x, u.z)]) {
-          this.airAlerted = true;
-          this.msg("Aeronaves inimigas avistadas! Torres Antiaéreas e Lança-mísseis as derrubam.", "warn");
+        if (u.team !== viewer && UNITS[u.kind].air && this.teams[viewer].visible[this.tileIndex(u.x, u.z)]) {
+          this.airAlerted[viewer] = true;
+          this.msg("Aeronaves inimigas avistadas! Torres Antiaéreas e Lança-mísseis as derrubam.", "warn", viewer);
           break;
         }
       }
