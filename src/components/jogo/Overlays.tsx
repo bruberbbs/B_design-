@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Play, RotateCcw, Skull, Swords, Trophy, Volume2, VolumeX, House, ChevronDown } from "lucide-react";
+import { Play, RotateCcw, Skull, Swords, Trophy, Volume2, VolumeX, House, ChevronDown, Music2 } from "lucide-react";
 import { DIFFICULTY, FACTIONS, type Difficulty, type Faction } from "@/lib/jogo/defs";
 import type { HudSnapshot } from "@/lib/jogo/hud";
 import { cn } from "@/lib/utils";
@@ -132,14 +132,16 @@ function HelpCard({ title, children }: { title: string; children: React.ReactNod
 interface PauseProps {
   speed: number;
   sound: boolean;
+  music: boolean;
   onSpeed: (s: number) => void;
   onSound: () => void;
+  onMusic: () => void;
   onResume: () => void;
   onRestart: () => void;
   onQuit: () => void;
 }
 
-export function PauseMenu({ speed, sound, onSpeed, onSound, onResume, onRestart, onQuit }: PauseProps) {
+export function PauseMenu({ speed, sound, music, onSpeed, onSound, onMusic, onResume, onRestart, onQuit }: PauseProps) {
   return (
     <div className="fixed inset-0 z-20 grid place-items-center bg-black/55 p-4 backdrop-blur-sm" onClick={onResume}>
       <div className="w-full max-w-xs rounded-3xl bg-[#111a2e] p-5 shadow-2xl ring-1 ring-white/10" onClick={(e) => e.stopPropagation()}>
@@ -156,7 +158,16 @@ export function PauseMenu({ speed, sound, onSpeed, onSound, onResume, onRestart,
           ))}
         </div>
         <button onClick={onSound} className="mb-2 flex w-full items-center justify-center gap-2 rounded-2xl bg-white/8 py-2.5 text-sm font-semibold ring-1 ring-white/10 hover:bg-white/15">
-          {sound ? <Volume2 className="size-4" /> : <VolumeX className="size-4" />} Som {sound ? "ligado" : "desligado"}
+          {sound ? <Volume2 className="size-4" /> : <VolumeX className="size-4" />} Efeitos {sound ? "ligados" : "desligados"}
+        </button>
+        <button
+          onClick={onMusic}
+          className={cn(
+            "mb-2 flex w-full items-center justify-center gap-2 rounded-2xl py-2.5 text-sm font-semibold ring-1 ring-white/10 hover:bg-white/15",
+            music ? "bg-white/8" : "bg-white/[0.03] text-white/50",
+          )}
+        >
+          <Music2 className="size-4" /> Música {music ? "ligada" : "desligada"}
         </button>
         <button onClick={onRestart} className="mb-2 flex w-full items-center justify-center gap-2 rounded-2xl bg-white/8 py-2.5 text-sm font-semibold ring-1 ring-white/10 hover:bg-white/15">
           <RotateCcw className="size-4" /> Reiniciar

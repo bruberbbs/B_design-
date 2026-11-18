@@ -2,6 +2,47 @@
 
 import type { GameEvent } from "./game";
 
+let shared: AudioContext | null = null;
+
+// Contexto de áudio único do jogo. Chame dentro de um toque/clique para liberar o som no celular.
+export function primeAudio(): AudioContext | null {
+  if (typeof window === "undefined") return null;
+  if (!shared) {
+    const Ctor = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!Ctor) return null;
+    shared = new Ctor();
+  }
+  if (shared.state === "suspended") void shared.resume();
+  return shared;
+}
+
+export function audioContext() {
+  return shared;
+}
+
+const PREFS_KEY = "mare-de-aco:audio:v1";
+
+export function loadAudioPrefs(): { sound: boolean; music: boolean } {
+  try {
+    const raw = window.localStorage.getItem(PREFS_KEY);
+    if (raw) {
+      const p = JSON.parse(raw) as { sound?: boolean; music?: boolean };
+      return { sound: p.sound !== false, music: p.music !== false };
+    }
+  } catch {
+    // armazenamento indisponível: usa o padrão
+  }
+  return { sound: true, music: true };
+}
+
+export function saveAudioPrefs(p: { sound: boolean; music: boolean }) {
+  try {
+    window.localStorage.setItem(PREFS_KEY, JSON.stringify(p));
+  } catch {
+    // ignora
+  }
+}
+
 export class Sfx {
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
@@ -14,9 +55,9 @@ export class Sfx {
       if (this.ctx.state === "suspended") void this.ctx.resume();
       return;
     }
-    const Ctor = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-    if (!Ctor) return;
-    this.ctx = new Ctor();
+    const ctx = primeAudio();
+    if (!ctx) return;
+    this.ctx = ctx;
     this.master = this.ctx.createGain();
     this.master.gain.value = 0.5;
     this.master.connect(this.ctx.destination);

@@ -49,6 +49,7 @@ Em <http://localhost:3000/jogo> há também um jogo de **estratégia em tempo re
 - **Aeronaves**: voam em linha reta por cima de rios, rochas e árvores. Só armas antiaéreas as atingem: Torre Antiaérea, Fuzileiro, Lança-mísseis, Batedor, Javali e Drone; tanques, artilharia e torres terrestres não.
 - **IA** em três dificuldades: ergue a base, mantém coletores, defende e ataca em ondas.
 - **Névoa de guerra**, explosões, fumaça, marcas de queimado e sons sintetizados.
+- **Trilha sonora adaptativa**, composta e sintetizada em tempo real (sem arquivos de áudio): um tema por facção — Aurora em ré maior, luminoso, a 104 BPM; Legião em dó menor, sombrio, a 92 BPM, com baixo distorcido — que passa de calmo para tensão (inimigos à vista) e batalha (combate ou base sob ataque), com vinhetas de vitória e derrota. Música e efeitos podem ser ligados e desligados separadamente no menu, e a escolha fica salva no navegador.
 - **Controles**: mouse e teclado (esquerdo seleciona, direito comanda, A atacar-mover, S parar, Ctrl+1–9 grupos) ou toque (toque comanda, arrastar move a câmera, pinça dá zoom).
 
 ![Helicópteros e drones sob fogo antiaéreo](docs/screenshots/jogo-aereo.png)
@@ -129,7 +130,8 @@ src/
     game.ts               # simulação (economia, produção, combate, visão)
     ai.ts                 # IA inimiga
     input.ts / hud.ts     # controles e dados da interface/minimapa
-    audio.ts              # sons sintetizados
+    audio.ts              # efeitos sonoros sintetizados
+    music.ts              # trilha sonora adaptativa (sequenciador + sintetizadores)
     render/               # cena three.js, modelos 3D, partículas e ícones
 ```
 

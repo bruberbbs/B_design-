@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Map as MapIcon, Menu, Pause } from "lucide-react";
 import { AIController } from "@/lib/jogo/ai";
-import { Sfx } from "@/lib/jogo/audio";
+import { audioContext, loadAudioPrefs, saveAudioPrefs, Sfx } from "@/lib/jogo/audio";
+import { Music, MusicDirector } from "@/lib/jogo/music";
 import { BUILDINGS, FACTIONS, OTHER_FACTION, type Difficulty, type Faction, type Producer } from "@/lib/jogo/defs";
 import { Game } from "@/lib/jogo/game";
 import { drawMinimap, minimapToWorld, snapshot, type HudSnapshot, type ItemKind } from "@/lib/jogo/hud";
@@ -20,6 +21,7 @@ interface Engine {
   renderer: GameRenderer;
   input: InputController;
   sfx: Sfx;
+  music: Music | null;
 }
 
 interface Toast {
@@ -53,7 +55,8 @@ export function GameView({ difficulty, faction, onRestart, onMenu }: GameViewPro
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [menu, setMenu] = useState(false);
   const [tab, setTab] = useState<Producer>("structure");
-  const [sound, setSound] = useState(true);
+  const [audio, setAudio] = useState(loadAudioPrefs);
+  const audioRef = useRef(audio);
   const [touch, setTouch] = useState(false);
   const [miniOpen, setMiniOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -89,6 +92,7 @@ export function GameView({ difficulty, faction, onRestart, onMenu }: GameViewPro
       return;
     }
     const sfx = new Sfx();
+    sfx.enabled = audioRef.current.sound;
     const ai = new AIController(game, 1);
     const input = new InputController(canvas, game, renderer, {
       getMode: () => modeRef.current,
@@ -97,7 +101,11 @@ export function GameView({ difficulty, faction, onRestart, onMenu }: GameViewPro
       togglePause: () => openMenu(!menuRef.current),
       sfx,
     });
-    engineRef.current = { game, ai, renderer, input, sfx };
+    const engine: Engine = { game, ai, renderer, input, sfx, music: null };
+    engineRef.current = engine;
+    const director = new MusicDirector();
+    let lastPaused = false;
+    let ended = false;
     if (process.env.NODE_ENV !== "production") (window as unknown as { __jogo?: Engine }).__jogo = engineRef.current;
 
     const resize = () => renderer.resize(wrap.clientWidth, wrap.clientHeight);
@@ -122,6 +130,28 @@ export function GameView({ difficulty, faction, onRestart, onMenu }: GameViewPro
       const events = game.drainEvents();
       renderer.handleEvents(events);
       sfx.handle(events, near);
+      // trilha sonora: começa assim que o áudio estiver liberado
+      if (!engine.music) {
+        const ctx = audioContext();
+        if (ctx) {
+          engine.music = new Music(ctx, faction);
+          engine.music.setEnabled(audioRef.current.music);
+          engine.music.start();
+        }
+      }
+      const music = engine.music;
+      if (music) {
+        if (game.phase === "playing") {
+          music.requestIntensity(director.update(game, events, game.paused ? 0 : dt), now / 1000);
+          if (game.paused !== lastPaused) {
+            lastPaused = game.paused;
+            music.setPaused(game.paused);
+          }
+        } else if (!ended) {
+          ended = true;
+          music.ending(game.phase === "victory");
+        }
+      }
       for (const ev of events) if (ev.type === "msg") pushToast(ev.text, ev.tone);
       renderer.render(game.paused || game.phase !== "playing" ? dt * 0.25 : dt * game.speed);
       raf = requestAnimationFrame(loop);
@@ -165,6 +195,7 @@ export function GameView({ difficulty, faction, onRestart, onMenu }: GameViewPro
       window.clearTimeout(thumbTimer);
       ro.disconnect();
       input.dispose();
+      engine.music?.dispose();
       renderer.dispose();
       engineRef.current = null;
     };
@@ -243,11 +274,16 @@ export function GameView({ difficulty, faction, onRestart, onMenu }: GameViewPro
     e.renderer.focus(p.x, p.z);
   };
 
-  const toggleSound = () => {
+  const updateAudio = (patch: Partial<typeof audio>) => {
+    const next = { ...audioRef.current, ...patch };
+    audioRef.current = next;
+    setAudio(next);
+    saveAudioPrefs(next);
     const e = engineRef.current;
-    const next = !sound;
-    if (e) e.sfx.enabled = next;
-    setSound(next);
+    if (e) {
+      e.sfx.enabled = next.sound;
+      e.music?.setEnabled(next.music);
+    }
   };
 
   const setSpeed = (s: number) => {
@@ -437,9 +473,11 @@ export function GameView({ difficulty, faction, onRestart, onMenu }: GameViewPro
       {menu && hud && (
         <PauseMenu
           speed={hud.speed}
-          sound={sound}
+          sound={audio.sound}
+          music={audio.music}
           onSpeed={setSpeed}
-          onSound={toggleSound}
+          onSound={() => updateAudio({ sound: !audio.sound })}
+          onMusic={() => updateAudio({ music: !audio.music })}
           onResume={() => openMenu(false)}
           onRestart={onRestart}
           onQuit={onMenu}
