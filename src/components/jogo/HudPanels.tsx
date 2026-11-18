@@ -1,6 +1,6 @@
 "use client";
 
-import { Coins, Crosshair, House, Lock, OctagonX, Radar, SquareDashed, Star, Users, Wrench, X, Zap, BadgeDollarSign, Move, Swords } from "lucide-react";
+import { Coins, Crosshair, House, Lock, OctagonX, Radar, SquareDashed, Star, Users, Wrench, X, Zap, BadgeDollarSign, Move, Swords, Flag } from "lucide-react";
 import type { Producer } from "@/lib/jogo/defs";
 import type { HudSnapshot, ItemKind, ItemState, SelectionInfo } from "@/lib/jogo/hud";
 import { cn } from "@/lib/utils";
@@ -170,6 +170,9 @@ interface SelProps {
   attackMode: boolean;
   onMoveMode: () => void;
   onAttackMode: () => void;
+  rallyMode: boolean;
+  onRallyMode: () => void;
+  onClearRally: () => void;
 }
 
 // Comandos das tropas selecionadas: Mover, Atacar e Parar, com rótulo.
@@ -192,7 +195,32 @@ function UnitCommands({ moveMode, attackMode, onMoveMode, onAttackMode, onStop }
   );
 }
 
-function CmdBtn({ children, onClick, active, tone }: { children: React.ReactNode; onClick: () => void; active?: boolean; tone?: "move" | "attack" }) {
+// Ponto de desembarque do quartel/fábrica/heliporto: as tropas novas seguem para lá.
+function RallyCommands({ sel, touch, rallyMode, onRallyMode, onClearRally }: { sel: Extract<SelectionInfo, { type: "single" }>; touch?: boolean } & Pick<SelProps, "rallyMode" | "onRallyMode" | "onClearRally">) {
+  return (
+    <div className="mt-2">
+      <div className={cn("grid gap-1.5", sel.hasRally ? "grid-cols-[1fr_auto]" : "grid-cols-1")}>
+        <CmdBtn active={rallyMode} onClick={onRallyMode} tone="rally">
+          <Flag className="size-4" /> {rallyMode ? "Escolha no mapa…" : sel.hasRally ? "Mudar desembarque" : "Ponto de desembarque"}
+        </CmdBtn>
+        {sel.hasRally && (
+          <CmdBtn onClick={onClearRally}>
+            <X className="size-4" /> Remover
+          </CmdBtn>
+        )}
+      </div>
+      <p className="mt-1.5 text-[10px] leading-snug text-white/45">
+        {rallyMode
+          ? `${touch ? "Toque" : "Clique"} no mapa onde ${sel.rallyOf} deve se reunir.`
+          : sel.hasRally
+            ? `Ao sair, ${sel.rallyOf} vai até a bandeira. Vale para todos os prédios deste tipo.`
+            : `Defina para onde ${sel.rallyOf} vai ao ficar pronta.`}
+      </p>
+    </div>
+  );
+}
+
+function CmdBtn({ children, onClick, active, tone }: { children: React.ReactNode; onClick: () => void; active?: boolean; tone?: "move" | "attack" | "rally" }) {
   return (
     <button
       onClick={onClick}
@@ -201,8 +229,10 @@ function CmdBtn({ children, onClick, active, tone }: { children: React.ReactNode
         "flex items-center justify-center gap-1.5 rounded-xl py-2 text-xs font-bold ring-1 transition active:scale-95",
         active && tone === "move" && "bg-emerald-400 text-emerald-950 ring-emerald-200",
         active && tone === "attack" && "bg-red-500 text-white ring-red-300",
+        active && tone === "rally" && "bg-amber-300 text-amber-950 ring-amber-100",
         !active && tone === "move" && "bg-emerald-400/15 text-emerald-100 ring-emerald-300/30 hover:bg-emerald-400/25",
         !active && tone === "attack" && "bg-red-500/15 text-red-100 ring-red-300/30 hover:bg-red-500/25",
+        !active && tone === "rally" && "bg-amber-300/15 text-amber-100 ring-amber-200/35 hover:bg-amber-300/25",
         !tone && "bg-white/8 text-white/90 ring-white/15 hover:bg-white/15",
       )}
     >
@@ -211,7 +241,7 @@ function CmdBtn({ children, onClick, active, tone }: { children: React.ReactNode
   );
 }
 
-export function SelectionPanel({ sel, thumbs, onSell, onRepair, onPrimary, onStop, onClear, onSelectKind, moveMode, attackMode, onMoveMode, onAttackMode }: SelProps) {
+export function SelectionPanel({ sel, thumbs, onSell, onRepair, onPrimary, onStop, onClear, onSelectKind, moveMode, attackMode, onMoveMode, onAttackMode, rallyMode, onRallyMode, onClearRally, touch }: SelProps & { touch?: boolean }) {
   if (sel.type === "none") return null;
   const cmd = { moveMode, attackMode, onMoveMode, onAttackMode, onStop };
   if (sel.type === "multi") {
@@ -284,6 +314,7 @@ export function SelectionPanel({ sel, thumbs, onSell, onRepair, onPrimary, onSto
         </div>
       </div>
       {sel.own && sel.entity === "unit" && <UnitCommands {...cmd} />}
+      {sel.canRally && <RallyCommands sel={sel} touch={touch} rallyMode={rallyMode} onRallyMode={onRallyMode} onClearRally={onClearRally} />}
       {sel.own && sel.entity === "building" && (
         <div className="mt-2 flex flex-wrap gap-1.5">
 

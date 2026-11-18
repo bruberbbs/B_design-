@@ -39,7 +39,8 @@ type Cmd =
   | { c: "place"; tx: number; tz: number }
   | { c: "sell"; id: number }
   | { c: "repair"; id: number }
-  | { c: "primary"; id: number };
+  | { c: "primary"; id: number }
+  | { c: "rally"; ids: number[]; x: number; z: number }; // x < 0 remove
 
 type UnitRow = [number, number, Team, number, number, number, number, number, number, number, number, number, number, number, number, number, number];
 type BuildingRow = [number, number, Team, number, number, number, number, number, number, number, number, number];
@@ -140,6 +141,9 @@ export class HostLink {
         break;
       case "primary":
         o.primary(c.id);
+        break;
+      case "rally":
+        o.rally(c.ids, c.x < 0 ? null : { x: c.z, z: c.x });
         break;
     }
   }
@@ -317,6 +321,7 @@ export class GuestLink {
       sell: (id) => send({ c: "sell", id }),
       repair: (id) => send({ c: "repair", id }),
       primary: (id) => send({ c: "primary", id }),
+      rally: (ids, p) => send({ c: "rally", ids: ids.filter((id) => g.get(id)?.team === 0), x: p ? r2(p.x) : -1, z: p ? r2(p.z) : -1 }),
     };
   }
 

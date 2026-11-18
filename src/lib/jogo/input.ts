@@ -2,7 +2,7 @@
 // pinça dá zoom) e teclado.
 
 import type { Sfx } from "./audio";
-import { BUILDINGS, type BuildingKind } from "./defs";
+import { BUILDINGS, isRallyKind, type BuildingKind } from "./defs";
 import type { Entity, Game } from "./game";
 import type { Orders } from "./orders";
 import type { GameRenderer } from "./render/scene";
@@ -12,6 +12,7 @@ export interface InputMode {
   attackMove: boolean;
   forceMove: boolean; // "Mover": vai até o destino sem parar para lutar
   boxMode: boolean;
+  rally: boolean; // próximo clique/toque no mapa define o ponto de desembarque
 }
 
 export interface InputHooks {
@@ -88,7 +89,7 @@ export class InputController {
     this.canvas.setPointerCapture(e.pointerId);
     // apertar sobre uma unidade própria permite arrastá-la até o destino
     let grab: number | null = null;
-    if (e.button === 0 && !this.hooks.getMode().placing) {
+    if (e.button === 0 && !this.hooks.getMode().placing && !this.hooks.getMode().rally) {
       const id = this.r.pick(p.x, p.y, e.pointerType === "mouse" ? 12 : 24);
       const u = id !== null ? this.game.units.get(id) : undefined;
       if (u && u.team === 0) grab = id;
@@ -256,6 +257,31 @@ export class InputController {
     return out;
   }
 
+  // Prédios produtores selecionados (quartel, fábrica, heliporto).
+  rallyBuildings() {
+    return this.selectedOwn()
+      .filter((e) => e.type === "building" && isRallyKind(e.kind))
+      .map((e) => e.id);
+  }
+
+  private setRallyAt(px: number, py: number) {
+    const w = this.r.screenToWorld(px, py);
+    const ids = this.rallyBuildings();
+    this.hooks.setMode({ rally: false });
+    if (!w || !ids.length) return;
+    this.orders.rally(ids, { x: w.x, z: w.z });
+    this.r.ping(w.x, w.z, false);
+    this.hooks.sfx.ui();
+  }
+
+  clearRally() {
+    const ids = this.rallyBuildings();
+    if (!ids.length) return;
+    this.orders.rally(ids, null);
+    this.hooks.setMode({ rally: false });
+    this.hooks.sfx.ui();
+  }
+
   private canCommand() {
     return this.selectedOwn().some((e) => e.type === "unit" || e.kind === "barracks" || e.kind === "factory" || e.kind === "helipad");
   }
@@ -310,6 +336,10 @@ export class InputController {
       if (t) this.tryPlace(t.tx, t.tz);
       return;
     }
+    if (mode.rally) {
+      this.setRallyAt(px, py);
+      return;
+    }
     const id = this.resolvePick(px, py, 14);
     if ((mode.attackMove || mode.forceMove) && this.canCommand()) {
       this.command(px, py, id);
@@ -344,8 +374,8 @@ export class InputController {
       this.hooks.setMode({ placing: null });
       return;
     }
-    if (mode.attackMove || mode.forceMove) {
-      this.hooks.setMode({ attackMove: false, forceMove: false });
+    if (mode.attackMove || mode.forceMove || mode.rally) {
+      this.hooks.setMode({ attackMove: false, forceMove: false, rally: false });
       return;
     }
     if (!this.canCommand()) return;
@@ -359,6 +389,10 @@ export class InputController {
       if (!t) return;
       if (this.touchGhost && this.touchGhost.tx === t.tx && this.touchGhost.tz === t.tz) this.tryPlace(t.tx, t.tz);
       else this.touchGhost = t;
+      return;
+    }
+    if (mode.rally) {
+      this.setRallyAt(px, py);
       return;
     }
     const id = this.resolvePick(px, py, 26);
@@ -399,7 +433,7 @@ export class InputController {
     const k = e.key.toLowerCase();
     if (e.key === "Escape") {
       const mode = this.hooks.getMode();
-      if (mode.placing || mode.attackMove || mode.forceMove) this.hooks.setMode({ placing: null, attackMove: false, forceMove: false });
+      if (mode.placing || mode.attackMove || mode.forceMove || mode.rally) this.hooks.setMode({ placing: null, attackMove: false, forceMove: false, rally: false });
       else if (this.game.selected.size) this.game.selected.clear();
       else this.hooks.togglePause();
       return;
@@ -418,6 +452,10 @@ export class InputController {
     }
     if (k === "m" && !e.ctrlKey && !e.metaKey) {
       if (this.canCommand()) this.hooks.setMode({ forceMove: true, attackMove: false });
+      return;
+    }
+    if (k === "d" && !e.ctrlKey && !e.metaKey) {
+      if (this.rallyBuildings().length) this.hooks.setMode({ rally: !this.hooks.getMode().rally, attackMove: false, forceMove: false, placing: null });
       return;
     }
     if (k === "h") {
@@ -492,12 +530,13 @@ export class InputController {
     if (this.keys.has("ArrowDown")) dy += 1;
     if (dx || dy) this.r.panPixels(-dx * 700 * dt, -dy * 700 * dt);
 
+    if (this.hooks.getMode().rally && !this.rallyBuildings().length) this.hooks.setMode({ rally: false });
     const kind = this.hooks.getMode().placing;
     if (!kind) {
       this.touchGhost = null;
       this.r.setGhost(null, 0, 0, false);
       const m = this.hooks.getMode();
-      this.canvas.style.cursor = m.attackMove ? "crosshair" : m.forceMove ? "cell" : this.hoverCursor();
+      this.canvas.style.cursor = m.attackMove || m.rally ? "crosshair" : m.forceMove ? "cell" : this.hoverCursor();
       return;
     }
     let t: { tx: number; tz: number } | null = null;

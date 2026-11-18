@@ -965,12 +965,22 @@ export class GameRenderer {
 
   private makeFlag() {
     const g = new THREE.Group();
-    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.7, 6), new THREE.MeshBasicMaterial({ color: "#e8edf5" }));
-    pole.position.y = 0.35;
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 1.0, 6), new THREE.MeshBasicMaterial({ color: "#e8edf5" }));
+    pole.position.y = 0.5;
     g.add(pole);
-    const flag = new THREE.Mesh(new THREE.PlaneGeometry(0.3, 0.18), new THREE.MeshBasicMaterial({ color: this.game.colors(0).main, side: THREE.DoubleSide }));
-    flag.position.set(0.15, 0.6, 0);
+    const flagGeo = new THREE.PlaneGeometry(0.42, 0.26);
+    flagGeo.translate(0.21, 0, 0);
+    const flag = new THREE.Mesh(flagGeo, new THREE.MeshBasicMaterial({ color: this.game.colors(0).main, side: THREE.DoubleSide }));
+    flag.position.set(0, 0.86, 0);
     g.add(flag);
+    // círculo no chão marcando a área de reunião
+    const ring = new THREE.Mesh(
+      new THREE.RingGeometry(0.62, 0.74, 40).rotateX(-Math.PI / 2),
+      new THREE.MeshBasicMaterial({ color: "#ffc94a", transparent: true, opacity: 0.85, depthWrite: false }),
+    );
+    ring.position.y = 0.06;
+    g.add(ring);
+    g.renderOrder = 4;
     return g;
   }
 
@@ -1434,7 +1444,7 @@ export class GameRenderer {
       }
     }
 
-    // ponto de reunião da fábrica selecionada
+    // ponto de desembarque do prédio selecionado
     this.rallyFlag.visible = false;
     for (const id of g.selected) {
       const b = g.buildings.get(id);
@@ -1442,6 +1452,9 @@ export class GameRenderer {
         this.rallyFlag.visible = true;
         this.rallyFlag.position.set(b.rally.x, 0, b.rally.z);
         this.rallyFlag.children[1].rotation.y = Math.sin(t * 4) * 0.25;
+        const ring = this.rallyFlag.children[2];
+        const k = 1 + 0.12 * Math.sin(t * 5);
+        ring.scale.set(k, k, k);
       }
     }
   }
@@ -1797,8 +1810,14 @@ export class GameRenderer {
   // Agrupa as tropas selecionadas por destino e desenha uma seta por grupo.
   private updateArrows() {
     const g = this.game;
-    const arrows: { x0: number; z0: number; x1: number; z1: number; attack: boolean }[] = [];
+    const arrows: { x0: number; z0: number; x1: number; z1: number; attack: boolean; rally?: boolean }[] = [];
     if (this.dragArrow) arrows.push(this.dragArrow);
+    // do prédio produtor selecionado até o ponto de desembarque
+    for (const id of g.selected) {
+      const b = g.buildings.get(id);
+      if (!b || b.team !== 0 || !b.rally) continue;
+      arrows.push({ x0: b.tx + b.w / 2, z0: b.tz + b.h / 2, x1: b.rally.x, z1: b.rally.z, attack: false, rally: true });
+    }
     const groups = new Map<string, { sx: number; sz: number; dx: number; dz: number; n: number; attack: boolean }>();
     for (const id of g.selected) {
       const u = g.units.get(id);
@@ -1829,6 +1848,7 @@ export class GameRenderer {
     let v = 0;
     const green = new THREE.Color("#5dff8a");
     const red = new THREE.Color("#ff5a4a");
+    const amber = new THREE.Color("#ffc94a");
     const put = (x: number, z: number, c: THREE.Color) => {
       P[v * 3] = x;
       P[v * 3 + 1] = 0.09;
@@ -1847,7 +1867,7 @@ export class GameRenderer {
       const uz = dz / len;
       const nx = -uz;
       const nz = ux;
-      const c = a.attack ? red : green;
+      const c = a.rally ? amber : a.attack ? red : green;
       const w = 0.09;
       const hw = 0.3;
       const head = Math.min(0.6, len * 0.4);

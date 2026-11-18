@@ -511,6 +511,11 @@ export const PRODUCER_BUILDING: Record<Producer, BuildingKind> = {
   air: "helipad",
 };
 
+// Prédios que produzem tropas e aceitam ponto de desembarque.
+export function isRallyKind(kind: BuildingKind) {
+  return kind === "barracks" || kind === "factory" || kind === "helipad";
+}
+
 export function canHitLayer(w: Weapon, air: boolean) {
   const t = w.targets ?? "ground";
   return t === "both" || (t === "air") === air;

@@ -14,6 +14,7 @@ export interface Orders {
   sell(id: number): void;
   repair(id: number): void;
   primary(id: number): void;
+  rally(ids: number[], point: { x: number; z: number } | null): void;
 }
 
 export function producerOfBuilding(kind: BuildingKind): Producer | null {
@@ -59,5 +60,8 @@ export class LocalOrders implements Orders {
     const b = this.game.buildings.get(id);
     const p = b && b.team === this.team ? producerOfBuilding(b.kind) : null;
     if (b && p) this.game.primary[this.team][p] = id;
+  }
+  rally(ids: number[], point: { x: number; z: number } | null) {
+    this.game.setRally(this.team, this.own(ids), point);
   }
 }

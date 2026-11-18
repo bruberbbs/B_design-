@@ -6,6 +6,7 @@ import {
   BUILD_ORDER_AIR,
   BUILD_ORDER_VEHICLES,
   BUILDINGS,
+  isRallyKind,
   UNITS,
   type BuildingKind,
   type Producer,
@@ -45,6 +46,9 @@ export type SelectionInfo =
       canSell: boolean;
       canPrimary: boolean;
       isPrimary: boolean;
+      canRally: boolean; // quartel, fábrica ou heliporto próprio
+      hasRally: boolean;
+      rallyOf: string; // quem desembarca: "a infantaria", "os veículos"...
       status: string;
     }
   | { type: "multi"; total: number; groups: { kind: UnitKind; count: number }[] };
@@ -129,6 +133,9 @@ export function snapshot(g: Game): HudSnapshot {
         canSell: false,
         canPrimary: false,
         isPrimary: false,
+        canRally: false,
+        hasRally: false,
+        rallyOf: "",
         status:
           e.team !== 0
             ? g.colors(e.team).name
@@ -159,6 +166,9 @@ export function snapshot(g: Game): HudSnapshot {
         canSell: e.team === 0 && e.kind !== "hq",
         canPrimary: e.team === 0 && multiple,
         isPrimary: g.primary[0][p] === e.id,
+        canRally: e.team === 0 && isRallyKind(e.kind),
+        hasRally: !!e.rally,
+        rallyOf: e.kind === "barracks" ? "a infantaria" : e.kind === "helipad" ? "as aeronaves" : "os veículos",
         status: e.team !== 0 ? g.colors(e.team).name : BUILDINGS[e.kind].desc,
       };
     }
