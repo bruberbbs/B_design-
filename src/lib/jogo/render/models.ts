@@ -7,10 +7,11 @@ import * as THREE from "three";
 import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import type { BuildingKind, FactionInfo, Team, UnitKind } from "../defs";
+import { drawEmblem, EMBLEM_H, EMBLEM_W, type EmblemKind } from "../emblems";
 import { TextureKit } from "./textures";
 
 export type MatPatcher = (m: THREE.Material) => void;
-type Colors = Pick<FactionInfo, "main" | "dark" | "light" | "camo" | "uniform" | "structure">;
+type Colors = Pick<FactionInfo, "main" | "dark" | "light" | "camo" | "uniform" | "structure" | "emblem">;
 
 export interface UnitModel {
   root: THREE.Group;
@@ -186,6 +187,47 @@ export class ModelKit {
   get crystal() {
     return this.mat("crystal", "#5ff0d0", { roughness: 0.2, metalness: 0.1, emissive: "#19b89a", emissiveIntensity: 0.6 });
   }
+  // Brasão da facção pintado como decalque (mantém as próprias coordenadas de textura).
+  emblem(team: Team) {
+    const kind: EmblemKind = this.colorsOf(team).emblem;
+    const key = `emblem|${kind}`;
+    let m = this.mats.get(key) as THREE.MeshStandardMaterial | undefined;
+    if (!m) {
+      const k = 1.6;
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.round(EMBLEM_W * k);
+      canvas.height = Math.round(EMBLEM_H * k);
+      const ctx = canvas.getContext("2d");
+      if (ctx) drawEmblem(ctx, kind, k);
+      const tex = new THREE.CanvasTexture(canvas);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.anisotropy = 8;
+      m = new THREE.MeshStandardMaterial({
+        map: tex,
+        alphaTest: 0.5,
+        roughness: 0.55,
+        metalness: 0.05,
+        emissive: "#ffffff",
+        emissiveMap: tex,
+        emissiveIntensity: 0.28,
+        polygonOffset: true,
+        polygonOffsetFactor: -2,
+        polygonOffsetUnits: -2,
+      });
+      m.userData.keepUV = true;
+      this.patch(m);
+      this.mats.set(key, m);
+    }
+    return m;
+  }
+  // Plano deitado com o brasão; "cima" do desenho aponta para o fundo da tela.
+  private emblemDecal(g: THREE.Object3D, team: Team, x: number, y: number, z: number, width: number) {
+    const geo = new THREE.PlaneGeometry(width, (width * EMBLEM_H) / EMBLEM_W);
+    geo.rotateX(-Math.PI / 2);
+    geo.rotateY(-Math.PI / 4);
+    this.add(g, geo, this.emblem(team), [x, y, z]);
+  }
+
   get lampRed() {
     return this.mat("lampred", "#ff4a3a", { emissive: "#ff2a1a", emissiveIntensity: 1.4, roughness: 0.4 });
   }
@@ -248,7 +290,7 @@ export class ModelKit {
     for (const [mat, list] of byMat) {
       const merged = mergeGeometries(list, false);
       if (!merged) continue;
-      boxUV(merged, (mat.userData.uvScale as number) ?? 1);
+      if (!mat.userData.keepUV) boxUV(merged, (mat.userData.uvScale as number) ?? 1);
       const mesh = new THREE.Mesh(merged, mat);
       mesh.castShadow = true;
       mesh.receiveShadow = true;
@@ -670,10 +712,14 @@ export class ModelKit {
         this.windows(inner, -0.05, 0.42, -0.15, "x", 9, 2.0, 0.91);
         this.windows(inner, -0.05, 0.42, -0.15, "z", 6, 1.4, 1.16);
         this.windows(inner, -0.05, 0.42, -0.15, "z", 6, 1.4, -1.16);
-        // bloco superior e torre de comunicação
-        this.add(inner, this.box(1.1, 0.38, 0.9, 0.02), wall, [-0.45, 0.92, -0.45]);
-        this.add(inner, this.box(1.14, 0.04, 0.94, 0.01), conc, [-0.45, 1.12, -0.45]);
-        this.add(inner, this.box(1.0, 0.1, 0.02, 0.004), this.glass, [-0.45, 0.98, 0.006]);
+        // bloco superior com o brasão da facção pintado no teto, e torre de comunicação
+        this.add(inner, this.box(1.3, 0.38, 1.3, 0.02), wall, [-0.45, 0.92, -0.4]);
+        this.add(inner, this.box(1.36, 0.04, 1.36, 0.01), conc, [-0.45, 1.12, -0.4]);
+        this.add(inner, this.box(1.38, 0.05, 0.03, 0.005), this.team(team), [-0.45, 1.115, 0.285]);
+        this.add(inner, this.box(0.03, 0.05, 1.38, 0.005), this.team(team), [-1.145, 1.115, -0.4]);
+        this.add(inner, this.box(1.2, 0.1, 0.02, 0.004), this.glass, [-0.45, 0.98, 0.256]);
+        this.add(inner, this.box(0.02, 0.1, 1.2, 0.004), this.glass, [-1.106, 0.98, -0.4]);
+        this.emblemDecal(inner, team, -0.45, 1.142, -0.4, 0.92);
         for (const [x, z] of [[0.55, -0.6], [0.75, 0.2], [0.35, 0.3]] as [number, number][]) {
           this.add(inner, this.box(0.18, 0.1, 0.14, 0.01), this.steel, [x, 0.78, z]);
           this.add(inner, this.cyl(0.04, 0.04, 0.012, 14), this.gunmetal, [x, 0.835, z]);
@@ -684,7 +730,7 @@ export class ModelKit {
           this.add(inner, this.cyl(0.008, 0.012, 0.9, 5), this.steel, [mx + dx * 0.6, 1.15, mz + dz * 0.6], [dz * 0.15, 0, -dx * 0.15]);
         for (let i = 0; i < 4; i++) this.add(inner, this.box(0.1, 0.006, 0.006, 0.002), this.steel, [mx, 0.8 + i * 0.18, mz]);
         this.add(inner, this.sphere(0.02, 8, 6), this.lampRed, [mx, 1.62, mz]);
-        this.add(inner, this.sphere(0.16, 18, 10, Math.PI * 2, Math.PI / 3), this.whitePaint, [-0.75, 1.2, -0.75], [0.6, 0.4, 0]);
+        this.add(inner, this.sphere(0.16, 18, 10, Math.PI * 2, Math.PI / 3), this.whitePaint, [0.85, 0.8, 0.5], [0.6, 0.4, 0]);
         // entrada com marquise, sacos de areia e bandeira
         this.add(inner, this.box(0.5, 0.3, 0.06, 0.01), this.dark, [-0.05, 0.21, 0.76]);
         this.add(inner, this.box(0.7, 0.04, 0.3, 0.01), conc, [-0.05, 0.4, 0.85]);

@@ -7,6 +7,7 @@ import { mapPreviews, type HudSnapshot } from "@/lib/jogo/hud";
 import { MAPS, type MapId } from "@/lib/jogo/map";
 import { normalizeCode } from "@/lib/jogo/net/room";
 import { cn } from "@/lib/utils";
+import { FactionEmblem } from "./FactionEmblem";
 import { formatTime } from "./HudPanels";
 
 interface StartProps {
@@ -29,15 +30,15 @@ export function StartScreen({ onStart, onHost, onJoin }: StartProps) {
   return (
     <div className="fixed inset-0 overflow-y-auto bg-[#0a0e18] text-white">
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute -left-32 top-10 size-[28rem] rounded-full bg-emerald-500/20 blur-3xl" />
+        <div className="absolute -left-32 top-10 size-[28rem] rounded-full bg-blue-500/20 blur-3xl" />
         <div className="absolute -right-24 bottom-0 size-[30rem] rounded-full bg-red-500/20 blur-3xl" />
         <div className="absolute left-1/2 top-1/2 size-[22rem] -translate-x-1/2 -translate-y-1/2 rounded-full bg-amber-300/10 blur-3xl" />
       </div>
       <div className="relative mx-auto flex min-h-full max-w-xl flex-col items-center justify-center px-5 py-10 text-center">
         <div className="mb-5 flex items-center gap-3">
-          <span className="size-4 rounded-full shadow-[0_0_20px_currentColor]" style={{ color: FACTIONS.aurora.main, background: FACTIONS.aurora.main }} />
+          <FactionEmblem kind={FACTIONS.aurora.emblem} className="h-12 w-auto drop-shadow-[0_0_18px_rgba(93,168,254,0.45)]" />
           <Swords className="size-7 text-white/70" />
-          <span className="size-4 rounded-full shadow-[0_0_20px_currentColor]" style={{ color: FACTIONS.escarlate.main, background: FACTIONS.escarlate.main }} />
+          <FactionEmblem kind={FACTIONS.escarlate.emblem} className="h-12 w-auto drop-shadow-[0_0_18px_rgba(254,121,92,0.45)]" />
         </div>
         <h1 className="bg-gradient-to-b from-white to-sky-200 bg-clip-text text-5xl font-black tracking-tight text-transparent sm:text-6xl">Force One</h1>
         <p className="mt-3 max-w-md text-balance text-sm text-white/65 sm:text-base">
@@ -85,9 +86,11 @@ export function StartScreen({ onStart, onHost, onJoin }: StartProps) {
                 )}
                 style={active ? { boxShadow: `0 0 0 2px ${info.main}, 0 12px 40px -12px ${info.main}` } : undefined}
               >
-                <div className="mb-1.5 flex items-center gap-2">
-                  <span className="size-3 rounded-full" style={{ background: info.main }} />
-                  <span className="font-bold">{info.name}</span>
+                <div className="mb-1.5 flex items-center gap-2.5">
+                  <FactionEmblem kind={info.emblem} className="h-9 w-auto shrink-0" />
+                  <span className="font-bold" style={{ color: info.light }}>
+                    {info.name}
+                  </span>
                 </div>
                 <p className="mb-2 text-xs text-white/60">{info.motto}</p>
                 <ul className="space-y-0.5 text-[11px] text-white/50">

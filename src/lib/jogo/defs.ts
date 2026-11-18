@@ -1,5 +1,7 @@
 // Regras do jogo "Force One": estatísticas de unidades, construções e armas.
 
+import type { EmblemKind } from "./emblems";
+
 export type Team = 0 | 1; // 0 = jogador, 1 = IA
 
 export type Armor = "none" | "light" | "heavy" | "building" | "aircraft";
@@ -542,28 +544,31 @@ export interface FactionInfo {
   camo: string[]; // pintura dos veículos (base + manchas)
   uniform: string[]; // farda dos soldados
   structure: string; // cor da pintura das construções
+  emblem: EmblemKind; // brasão pintado no topo do QG
 }
 
 export const FACTIONS: Record<Faction, FactionInfo> = {
   aurora: {
     name: "Coalizão Aurora",
-    main: "#2f6fe0",
-    dark: "#1c4294",
-    light: "#8fb6ff",
+    main: "#3a81f5",
+    dark: "#2f5ea8",
+    light: "#9bcafe",
     camo: ["#76805c", "#56603f", "#948e6a", "#3f4532"],
     uniform: ["#6e7552", "#50573d", "#8c8866", "#383d2e"],
     structure: "#a3a48e",
+    emblem: "zenite",
     motto: "Precisão, mobilidade e tecnologia.",
     traits: ["Tanque Vespa ágil e Batedor rápido", "Tanque Lumen com feixe de laser", "Morteiro de longo alcance", "Helicóptero Colibri antiblindagem"],
   },
   escarlate: {
     name: "Legião Escarlate",
-    main: "#d23a30",
-    dark: "#8e1f19",
-    light: "#ff9d8c",
+    main: "#fe694b",
+    dark: "#a6402c",
+    light: "#feb39d",
     camo: ["#b29a6c", "#8c7449", "#d0bd92", "#5e4c33"],
     uniform: ["#a8916a", "#806a47", "#c9b48b", "#5a4932"],
     structure: "#c4b08c",
+    emblem: "meridian",
     motto: "Força bruta, fogo e blindagem pesada.",
     traits: ["Tanque Titã já de início", "Lança-chamas e Torre Inferno", "Salvas do Lança-foguetes Tempestade", "Helicóptero Tufão anti-infantaria"],
   },
