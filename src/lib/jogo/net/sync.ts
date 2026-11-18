@@ -40,9 +40,10 @@ type Cmd =
   | { c: "sell"; id: number }
   | { c: "repair"; id: number }
   | { c: "primary"; id: number }
-  | { c: "rally"; ids: number[]; x: number; z: number }; // x < 0 remove
+  | { c: "rally"; ids: number[]; x: number; z: number } // x < 0 remove
+  | { c: "guard"; ids: number[]; x: number; z: number };
 
-type UnitRow = [number, number, Team, number, number, number, number, number, number, number, number, number, number, number, number, number, number];
+type UnitRow = [number, number, Team, number, number, number, number, number, number, number, number, number, number, number, number, number, number, number, number];
 type BuildingRow = [number, number, Team, number, number, number, number, number, number, number, number, number];
 type ProjRow = [number, number, number, number, number, number, number, number, number, number, number];
 
@@ -145,6 +146,9 @@ export class HostLink {
       case "rally":
         o.rally(c.ids, c.x < 0 ? null : { x: c.z, z: c.x });
         break;
+      case "guard":
+        o.guard(c.ids, c.z, c.x);
+        break;
     }
   }
 
@@ -202,6 +206,8 @@ export class HostLink {
         u.goal ? r2(u.goal.z) : -1,
         u.goal ? r2(u.goal.x) : -1,
         u.targetId ?? -1,
+        u.protect ? r2(u.protect.z) : -1,
+        u.protect ? r2(u.protect.x) : -1,
       ]),
       b: [...g.buildings.values()].map((b) => [
         b.id,
@@ -321,6 +327,7 @@ export class GuestLink {
       sell: (id) => send({ c: "sell", id }),
       repair: (id) => send({ c: "repair", id }),
       primary: (id) => send({ c: "primary", id }),
+      guard: (ids, x, z) => send({ c: "guard", ids: ids.filter((id) => g.get(id)?.team === 0), x: r2(x), z: r2(z) }),
       rally: (ids, p) => send({ c: "rally", ids: ids.filter((id) => g.get(id)?.team === 0), x: p ? r2(p.x) : -1, z: p ? r2(p.z) : -1 }),
     };
   }
@@ -340,7 +347,7 @@ export class GuestLink {
     // unidades
     const seenU = new Set<number>();
     for (const r of s.u) {
-      const [id, k, team, x, z, ang, tur, hp, fl, cargo, rec, born, ord, hs, gx, gz, tid] = r;
+      const [id, k, team, x, z, ang, tur, hp, fl, cargo, rec, born, ord, hs, gx, gz, tid, px, pz] = r;
       let u = g.units.get(id);
       if (!u) {
         u = g.addUnit(team, UNIT_KINDS[k], x, z);
@@ -360,6 +367,7 @@ export class GuestLink {
       u.hState = HSTATES[hs] ?? "idle";
       u.goal = gx >= 0 ? { x: gx, z: gz } : null;
       u.targetId = tid >= 0 ? tid : null;
+      u.protect = px >= 0 ? { x: px, z: pz } : null;
       seenU.add(id);
     }
     for (const id of [...g.units.keys()]) {

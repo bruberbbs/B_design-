@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Flag, Map as MapIcon, Menu, Pause, Wifi, WifiOff } from "lucide-react";
+import { Flag, Map as MapIcon, Menu, Pause, Shield, Wifi, WifiOff } from "lucide-react";
 import { AIController } from "@/lib/jogo/ai";
 import { audioContext, loadAudioPrefs, saveAudioPrefs, Sfx } from "@/lib/jogo/audio";
 import { Music, MusicDirector } from "@/lib/jogo/music";
@@ -37,7 +37,7 @@ interface Toast {
   at: number;
 }
 
-const INITIAL_MODE: InputMode = { placing: null, attackMove: false, forceMove: false, boxMode: false, rally: false };
+const INITIAL_MODE: InputMode = { placing: null, attackMove: false, forceMove: false, boxMode: false, rally: false, guard: false };
 let toastId = 1;
 
 interface GameViewProps {
@@ -242,7 +242,7 @@ export function GameView({ difficulty, faction, mapId, net, onRestart, onMenu }:
     const ts = e.game.teams[0];
     if (kind in BUILDINGS) {
       if (ts.ready === kind) {
-        setMode({ placing: modeRef.current.placing ? null : (kind as keyof typeof BUILDINGS), attackMove: false, forceMove: false, rally: false });
+        setMode({ placing: modeRef.current.placing ? null : (kind as keyof typeof BUILDINGS), attackMove: false, forceMove: false, rally: false, guard: false });
         e.sfx.ui();
         return;
       }
@@ -273,15 +273,19 @@ export function GameView({ difficulty, faction, mapId, net, onRestart, onMenu }:
 
   const ownSelectedUnits = (e: Engine) => [...e.game.selected].filter((id) => e.game.units.get(id)?.team === 0);
 
-  const toggleMove = () => setMode({ forceMove: !modeRef.current.forceMove, attackMove: false, placing: null, rally: false });
-  const toggleAttack = () => setMode({ attackMove: !modeRef.current.attackMove, forceMove: false, placing: null, rally: false });
-  const toggleRally = () => setMode({ rally: !modeRef.current.rally, attackMove: false, forceMove: false, placing: null });
+  const toggleMove = () => setMode({ forceMove: !modeRef.current.forceMove, attackMove: false, placing: null, rally: false, guard: false });
+  const toggleAttack = () => setMode({ attackMove: !modeRef.current.attackMove, forceMove: false, placing: null, rally: false, guard: false });
+  const toggleRally = () => setMode({ rally: !modeRef.current.rally, attackMove: false, forceMove: false, placing: null, guard: false });
+  const toggleGuard = () => setMode({ guard: !modeRef.current.guard, attackMove: false, forceMove: false, placing: null, rally: false });
 
   const actions = {
     moveMode: mode.forceMove,
     attackMode: mode.attackMove,
     onMoveMode: toggleMove,
     onAttackMode: toggleAttack,
+    infantryOnly: !!hud?.infantryOnly,
+    guardMode: mode.guard,
+    onGuardMode: toggleGuard,
     rallyMode: mode.rally,
     onRallyMode: withEngine(() => {
       engineRef.current?.sfx.ui();
@@ -304,6 +308,7 @@ export function GameView({ difficulty, faction, mapId, net, onRestart, onMenu }:
   };
 
   const bar = {
+    onGuardMode: toggleGuard,
     onAttackMove: toggleAttack,
     onMoveMode: toggleMove,
     onBoxMode: () => setMode({ boxMode: !modeRef.current.boxMode }),
@@ -452,6 +457,14 @@ export function GameView({ difficulty, faction, mapId, net, onRestart, onMenu }:
             </div>
           </div>
         )}
+        {mode.guard && !mode.placing && (
+          <div className={cn("pointer-events-none absolute inset-x-0 top-28 flex justify-center px-3 lg:top-auto lg:bottom-3", touch && "pr-20")}>
+            <div className="flex items-center gap-1.5 rounded-full bg-sky-400/95 px-4 py-1.5 text-center text-xs font-bold text-sky-950 shadow-lg">
+              <Shield className="size-3.5 shrink-0" />
+              Proteger: {touch ? "toque" : "clique"} na área que a infantaria deve vigiar
+            </div>
+          </div>
+        )}
         {mode.rally && !mode.placing && (
           <div className={cn("pointer-events-none absolute inset-x-0 top-28 flex justify-center px-3 lg:top-auto lg:bottom-3", touch && "pr-20")}>
             <div className="flex items-center gap-1.5 rounded-full bg-amber-300/95 px-4 py-1.5 text-center text-xs font-bold text-amber-950 shadow-lg">
@@ -485,7 +498,7 @@ export function GameView({ difficulty, faction, mapId, net, onRestart, onMenu }:
         {/* ações rápidas */}
         {hud && (
           <div className={cn("absolute", touch ? "right-2 top-1/2 -translate-y-1/2" : "bottom-3 left-3", mode.placing && !touch && "hidden")}>
-            <ActionBar hud={hud} attackMove={mode.attackMove} moveMode={mode.forceMove} boxMode={mode.boxMode} touch={touch} vertical={touch} {...bar} />
+            <ActionBar hud={hud} attackMove={mode.attackMove} moveMode={mode.forceMove} guardMode={mode.guard} boxMode={mode.boxMode} touch={touch} vertical={touch} {...bar} />
           </div>
         )}
 
@@ -542,7 +555,7 @@ export function GameView({ difficulty, faction, mapId, net, onRestart, onMenu }:
             <SelectionPanel sel={hud.selection} thumbs={thumbs} {...actions} />
           </div>
           <p className="text-[10px] leading-relaxed text-white/35">
-            Esquerdo: seleciona; com tropas selecionadas, clicar no chão move e num inimigo ataca · Arraste no vazio: seleção em área · Esc: desmarcar · Roda: zoom · Setas ou arrastar com o direito: câmera · M: mover sem lutar · A: atacar · S: parar · D: ponto de desembarque (quartel/fábrica/heliporto selecionado) · Ctrl+1–9: grupos</p>
+            Esquerdo: seleciona; com tropas selecionadas, clicar no chão move e num inimigo ataca · Arraste no vazio: seleção em área · Esc: desmarcar · Roda: zoom · Setas ou arrastar com o direito: câmera · M: mover sem lutar · G: proteger área (infantaria) · A: atacar · S: parar · D: ponto de desembarque (quartel/fábrica/heliporto selecionado) · Ctrl+1–9: grupos</p>
         </aside>
       )}
 

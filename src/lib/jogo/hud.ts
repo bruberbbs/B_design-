@@ -67,6 +67,7 @@ export interface HudSnapshot {
   items: Record<Producer, ItemState[]>;
   selection: SelectionInfo;
   hasCommandable: boolean;
+  infantryOnly: boolean; // seleção só de infantaria própria: "Mover" vira "Proteger"
   stats: { built: number; lost: number; kills: number; harvested: number; structures: number };
   enemyStats: { lost: number };
   playerName: string;
@@ -141,7 +142,13 @@ export function snapshot(g: Game): HudSnapshot {
             ? g.colors(e.team).name
             : e.kind === "harvester"
               ? HARVEST_LABEL[e.hState]
-              : e.order === "idle"
+              : e.protect
+                ? e.targetId !== null
+                  ? "Protegendo a área · em combate"
+                  : e.order === "idle"
+                    ? "Protegendo a área"
+                    : "Indo proteger a área"
+                : e.order === "idle"
                 ? "Aguardando ordens"
                 : e.order === "attack"
                   ? "Atacando"
@@ -193,6 +200,10 @@ export function snapshot(g: Game): HudSnapshot {
     items,
     selection,
     hasCommandable,
+    infantryOnly: (() => {
+      const own = sel.filter((e) => e.team === 0);
+      return own.length > 0 && own.every((e) => e.type === "unit" && !!UNITS[e.kind].infantry);
+    })(),
     stats: { ...ts.stats },
     enemyStats: { lost: g.teams[1].stats.lost },
     playerName: g.colors(0).name,

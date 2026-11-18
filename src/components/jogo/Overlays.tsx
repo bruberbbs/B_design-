@@ -226,6 +226,10 @@ export function StartScreen({ onStart, onHost, onJoin }: StartProps) {
               Tropas atacadas revidam sozinhas e chamam as companheiras por perto. Em movimento normal, elas param para lutar e depois seguem até o
               destino. Use “Mover” quando quiser passar sem parar para lutar.
             </HelpCard>
+            <HelpCard title="Proteger área">
+              Com só infantaria selecionada, o botão “Mover” vira “Proteger” (atalho: G). Toque nele e depois numa área do mapa: as tropas vão
+              até lá, atacam qualquer inimigo que entre no círculo azul e voltam ao posto depois da luta. Seguem de guarda até receber outra ordem.
+            </HelpCard>
             <HelpCard title="Ponto de desembarque">
               Toque no Quartel, na Fábrica ou no Heliporto e use “Ponto de desembarque”; depois toque no mapa (atalho: D). Cada prédio tem o seu
               ponto: com dois quartéis, eles se revezam no treino e cada um manda os soldados para a sua bandeira. Marcando um como “Principal”,

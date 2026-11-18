@@ -70,7 +70,12 @@ export interface Unit {
   idleTime: number;
   fightBack: boolean; // revida quando atacada (falso no "Mover" forçado)
   lastHelpCall: number;
+  protect: { x: number; z: number } | null; // posto da ordem "Proteger"
 }
+
+// Ordem "Proteger": raio da área vigiada em volta do posto e distância máxima de perseguição.
+export const PROTECT_RADIUS = 6;
+const PROTECT_LEASH = 8.5;
 
 export interface Building {
   id: number;
@@ -406,6 +411,7 @@ export class Game {
       idleTime: 0,
       fightBack: true,
       lastHelpCall: -99,
+      protect: null,
     };
     this.units.set(u.id, u);
     return u;
@@ -798,10 +804,37 @@ export class Game {
       u.path = [];
       u.goal = null;
       u.targetId = null;
+      u.protect = null;
       u.guardX = u.x;
       u.guardZ = u.z;
       if (u.kind === "harvester") u.hState = "idle";
     }
+  }
+
+  // Proteger: cada tropa vai até um posto na área escolhida e ataca o que entrar nela,
+  // voltando ao posto depois. Vale até receber outra ordem.
+  issueGuard(ids: number[], x: number, z: number) {
+    const units = ids
+      .map((id) => this.units.get(id))
+      .filter((u): u is Unit => !!u && u.kind !== "harvester" && !!UNITS[u.kind].weapon);
+    if (!units.length) return;
+    x = Math.max(0.5, Math.min(this.map.w - 0.5, x));
+    z = Math.max(0.5, Math.min(this.map.h - 0.5, z));
+    const slots = this.slotsAround(x, z, units);
+    for (const u of units) {
+      const s = slots.get(u.id) ?? { x, z };
+      u.protect = { x: s.x, z: s.z };
+      u.guardX = s.x;
+      u.guardZ = s.z;
+      u.goal = { ...s };
+      u.order = "move";
+      u.targetId = null;
+      u.returning = false;
+      u.idleTime = 0;
+      u.fightBack = true;
+      this.setPath(u, s.x, s.z, true);
+    }
+    if (units[0].team === 0) this.events.push({ type: "click" });
   }
 
   issueHarvest(ids: number[], tile: number) {
@@ -857,6 +890,7 @@ export class Game {
       return;
     }
     const unitIds = units.map((u) => u.id);
+    for (const u of units) u.protect = null; // qualquer nova ordem encerra o "Proteger"
     if (target && target.team !== team) {
       this.issueAttack(unitIds, target.id);
       return;
@@ -934,6 +968,12 @@ export class Game {
     const w = UNITS[u.kind].weapon;
     if (!w) return;
     const d = this.distTo(u.x, u.z, attacker);
+    if (u.protect) {
+      // protegendo: luta dentro da área (ou com quem já está ao alcance), sem abandonar o posto
+      const p = u.protect;
+      if (d <= w.range || this.distTo(p.x, p.z, attacker) <= PROTECT_LEASH) u.targetId = attacker.id;
+      return;
+    }
     // em movimento normal: luta e depois retoma o caminho até o destino
     if (u.order === "move") u.order = "attackMove";
     if (d <= w.range) {
@@ -1204,12 +1244,13 @@ export class Game {
       if (u.order === "idle") radius = u.returning ? w.range : Math.max(w.range + 1.2, Math.min(d.sight, w.range + 2.5));
       else if (u.order === "attackMove") radius = Math.max(d.sight, w.range);
       else if (u.order === "move" && d.turret) radius = w.range;
-      if (radius > 0) {
-        const t = this.findTarget(u.team, u.x, u.z, radius, w);
-        if (t) {
-          target = t;
-          u.targetId = t.id;
-        }
+      // protegendo: vigia a área inteira em volta do posto
+      const t =
+        (u.protect && u.order === "idle" ? this.findTarget(u.team, u.protect.x, u.protect.z, PROTECT_RADIUS, w) : null) ??
+        (radius > 0 ? this.findTarget(u.team, u.x, u.z, radius, w) : null);
+      if (t) {
+        target = t;
+        u.targetId = t.id;
       }
     }
 
@@ -1238,7 +1279,7 @@ export class Game {
       } else {
         // persegue
         const leashOk =
-          u.order === "attack" || u.order === "attackMove" || Math.hypot(u.x - u.guardX, u.z - u.guardZ) < 6;
+          u.order === "attack" || u.order === "attackMove" || Math.hypot(u.x - u.guardX, u.z - u.guardZ) < (u.protect ? PROTECT_LEASH : 6);
         if (!leashOk) {
           u.targetId = null;
           u.returning = true;
@@ -1285,8 +1326,8 @@ export class Game {
       if (arrived && (u.order === "move" || u.order === "attackMove")) {
         u.order = "idle";
         u.fightBack = true; // chegou: volta a se defender
-        u.guardX = u.x;
-        u.guardZ = u.z;
+        u.guardX = u.protect ? u.protect.x : u.x;
+        u.guardZ = u.protect ? u.protect.z : u.z;
       }
       if (arrived && u.returning) {
         u.returning = false;
@@ -1342,8 +1383,8 @@ export class Game {
           u.goal = null;
           if (u.order === "move" || u.order === "attackMove") {
             u.order = "idle";
-            u.guardX = u.x;
-            u.guardZ = u.z;
+            u.guardX = u.protect ? u.protect.x : u.x;
+            u.guardZ = u.protect ? u.protect.z : u.z;
           }
         } else {
           this.setPath(u, g.x, g.z);

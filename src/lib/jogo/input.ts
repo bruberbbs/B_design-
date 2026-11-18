@@ -13,6 +13,7 @@ export interface InputMode {
   forceMove: boolean; // "Mover": vai até o destino sem parar para lutar
   boxMode: boolean;
   rally: boolean; // próximo clique/toque no mapa define o ponto de desembarque
+  guard: boolean; // "Proteger": próximo clique/toque escolhe a área a proteger
 }
 
 export interface InputHooks {
@@ -290,6 +291,17 @@ export class InputController {
     const w = this.r.screenToWorld(px, py);
     if (!w) return;
     const mode = this.hooks.getMode();
+    if (mode.guard) {
+      const ids = this.selectedOwn()
+        .filter((e) => e.type === "unit")
+        .map((e) => e.id);
+      if (ids.length) {
+        this.orders.guard(ids, w.x, w.z);
+        this.r.ping(w.x, w.z, false);
+      }
+      this.hooks.setMode({ guard: false });
+      return;
+    }
     // "Mover" ignora o que estiver sob o destino; "Atacar" ataca o alvo ou avança lutando
     const tid = mode.forceMove ? null : id;
     const target = this.game.get(tid);
@@ -341,7 +353,7 @@ export class InputController {
       return;
     }
     const id = this.resolvePick(px, py, 14);
-    if ((mode.attackMove || mode.forceMove) && this.canCommand()) {
+    if ((mode.attackMove || mode.forceMove || mode.guard) && this.canCommand()) {
       this.command(px, py, id);
       return;
     }
@@ -374,8 +386,8 @@ export class InputController {
       this.hooks.setMode({ placing: null });
       return;
     }
-    if (mode.attackMove || mode.forceMove || mode.rally) {
-      this.hooks.setMode({ attackMove: false, forceMove: false, rally: false });
+    if (mode.attackMove || mode.forceMove || mode.rally || mode.guard) {
+      this.hooks.setMode({ attackMove: false, forceMove: false, rally: false, guard: false });
       return;
     }
     if (!this.canCommand()) return;
@@ -401,7 +413,7 @@ export class InputController {
     const dbl = id !== null && this.lastTap.id === id && now - this.lastTap.t < 400;
     this.lastTap = { t: now, id: id ?? -1 };
     const can = this.canCommand();
-    if ((mode.attackMove || mode.forceMove) && can) {
+    if ((mode.attackMove || mode.forceMove || mode.guard) && can) {
       this.command(px, py, id);
       return;
     }
@@ -433,7 +445,8 @@ export class InputController {
     const k = e.key.toLowerCase();
     if (e.key === "Escape") {
       const mode = this.hooks.getMode();
-      if (mode.placing || mode.attackMove || mode.forceMove || mode.rally) this.hooks.setMode({ placing: null, attackMove: false, forceMove: false, rally: false });
+      if (mode.placing || mode.attackMove || mode.forceMove || mode.rally || mode.guard)
+        this.hooks.setMode({ placing: null, attackMove: false, forceMove: false, rally: false, guard: false });
       else if (this.game.selected.size) this.game.selected.clear();
       else this.hooks.togglePause();
       return;
@@ -447,11 +460,16 @@ export class InputController {
       return;
     }
     if (k === "a" && !e.ctrlKey && !e.metaKey) {
-      if (this.canCommand()) this.hooks.setMode({ attackMove: true, forceMove: false });
+      if (this.canCommand()) this.hooks.setMode({ attackMove: true, forceMove: false, guard: false });
       return;
     }
     if (k === "m" && !e.ctrlKey && !e.metaKey) {
-      if (this.canCommand()) this.hooks.setMode({ forceMove: true, attackMove: false });
+      if (this.canCommand()) this.hooks.setMode({ forceMove: true, attackMove: false, guard: false });
+      return;
+    }
+    if (k === "g" && !e.ctrlKey && !e.metaKey) {
+      if (this.selectedOwn().some((s) => s.type === "unit" && s.kind !== "harvester"))
+        this.hooks.setMode({ guard: !this.hooks.getMode().guard, attackMove: false, forceMove: false, rally: false, placing: null });
       return;
     }
     if (k === "d" && !e.ctrlKey && !e.metaKey) {
@@ -531,12 +549,13 @@ export class InputController {
     if (dx || dy) this.r.panPixels(-dx * 700 * dt, -dy * 700 * dt);
 
     if (this.hooks.getMode().rally && !this.rallyBuildings().length) this.hooks.setMode({ rally: false });
+    if (this.hooks.getMode().guard && !this.selectedOwn().some((s) => s.type === "unit")) this.hooks.setMode({ guard: false });
     const kind = this.hooks.getMode().placing;
     if (!kind) {
       this.touchGhost = null;
       this.r.setGhost(null, 0, 0, false);
       const m = this.hooks.getMode();
-      this.canvas.style.cursor = m.attackMove || m.rally ? "crosshair" : m.forceMove ? "cell" : this.hoverCursor();
+      this.canvas.style.cursor = m.attackMove || m.rally || m.guard ? "crosshair" : m.forceMove ? "cell" : this.hoverCursor();
       return;
     }
     let t: { tx: number; tz: number } | null = null;

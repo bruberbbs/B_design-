@@ -1,6 +1,6 @@
 "use client";
 
-import { Coins, Crosshair, House, Lock, OctagonX, Radar, SquareDashed, Star, Users, Wrench, X, Zap, BadgeDollarSign, Move, Swords, Flag } from "lucide-react";
+import { Coins, Crosshair, House, Lock, OctagonX, Radar, SquareDashed, Star, Users, Wrench, X, Zap, BadgeDollarSign, Move, Swords, Flag, Shield } from "lucide-react";
 import type { Producer } from "@/lib/jogo/defs";
 import type { HudSnapshot, ItemKind, ItemState, SelectionInfo } from "@/lib/jogo/hud";
 import { cn } from "@/lib/utils";
@@ -173,16 +173,34 @@ interface SelProps {
   rallyMode: boolean;
   onRallyMode: () => void;
   onClearRally: () => void;
+  infantryOnly: boolean;
+  guardMode: boolean;
+  onGuardMode: () => void;
 }
 
-// Comandos das tropas selecionadas: Mover, Atacar e Parar, com rótulo.
-function UnitCommands({ moveMode, attackMode, onMoveMode, onAttackMode, onStop }: Pick<SelProps, "moveMode" | "attackMode" | "onMoveMode" | "onAttackMode" | "onStop">) {
+// Comandos das tropas selecionadas: Mover (ou Proteger, só com infantaria), Atacar e Parar.
+function UnitCommands({
+  moveMode,
+  attackMode,
+  onMoveMode,
+  onAttackMode,
+  onStop,
+  infantryOnly,
+  guardMode,
+  onGuardMode,
+}: Pick<SelProps, "moveMode" | "attackMode" | "onMoveMode" | "onAttackMode" | "onStop" | "infantryOnly" | "guardMode" | "onGuardMode">) {
   return (
     <div className="mt-2">
       <div className="grid grid-cols-3 gap-1.5">
-        <CmdBtn active={moveMode} onClick={onMoveMode} tone="move">
-          <Move className="size-4" /> Mover
-        </CmdBtn>
+        {infantryOnly ? (
+          <CmdBtn active={guardMode} onClick={onGuardMode} tone="guard">
+            <Shield className="size-4" /> Proteger
+          </CmdBtn>
+        ) : (
+          <CmdBtn active={moveMode} onClick={onMoveMode} tone="move">
+            <Move className="size-4" /> Mover
+          </CmdBtn>
+        )}
         <CmdBtn active={attackMode} onClick={onAttackMode} tone="attack">
           <Swords className="size-4" /> Atacar
         </CmdBtn>
@@ -190,7 +208,11 @@ function UnitCommands({ moveMode, attackMode, onMoveMode, onAttackMode, onStop }
           <OctagonX className="size-4" /> Parar
         </CmdBtn>
       </div>
-      <p className="mt-1.5 text-[10px] leading-snug text-white/45">Ou arraste a tropa até o destino. Soltar sobre um inimigo ataca.</p>
+      <p className="mt-1.5 text-[10px] leading-snug text-white/45">
+        {infantryOnly
+          ? "Proteger: escolha uma área; a infantaria fica de guarda e ataca quem entrar nela."
+          : "Ou arraste a tropa até o destino. Soltar sobre um inimigo ataca."}
+      </p>
     </div>
   );
 }
@@ -220,7 +242,7 @@ function RallyCommands({ sel, touch, rallyMode, onRallyMode, onClearRally }: { s
   );
 }
 
-function CmdBtn({ children, onClick, active, tone }: { children: React.ReactNode; onClick: () => void; active?: boolean; tone?: "move" | "attack" | "rally" }) {
+function CmdBtn({ children, onClick, active, tone }: { children: React.ReactNode; onClick: () => void; active?: boolean; tone?: "move" | "attack" | "rally" | "guard" }) {
   return (
     <button
       onClick={onClick}
@@ -230,9 +252,11 @@ function CmdBtn({ children, onClick, active, tone }: { children: React.ReactNode
         active && tone === "move" && "bg-emerald-400 text-emerald-950 ring-emerald-200",
         active && tone === "attack" && "bg-red-500 text-white ring-red-300",
         active && tone === "rally" && "bg-amber-300 text-amber-950 ring-amber-100",
+        active && tone === "guard" && "bg-sky-400 text-sky-950 ring-sky-100",
         !active && tone === "move" && "bg-emerald-400/15 text-emerald-100 ring-emerald-300/30 hover:bg-emerald-400/25",
         !active && tone === "attack" && "bg-red-500/15 text-red-100 ring-red-300/30 hover:bg-red-500/25",
         !active && tone === "rally" && "bg-amber-300/15 text-amber-100 ring-amber-200/35 hover:bg-amber-300/25",
+        !active && tone === "guard" && "bg-sky-400/15 text-sky-100 ring-sky-300/35 hover:bg-sky-400/25",
         !tone && "bg-white/8 text-white/90 ring-white/15 hover:bg-white/15",
       )}
     >
@@ -241,9 +265,9 @@ function CmdBtn({ children, onClick, active, tone }: { children: React.ReactNode
   );
 }
 
-export function SelectionPanel({ sel, thumbs, onSell, onRepair, onPrimary, onStop, onClear, onSelectKind, moveMode, attackMode, onMoveMode, onAttackMode, rallyMode, onRallyMode, onClearRally, touch }: SelProps & { touch?: boolean }) {
+export function SelectionPanel({ sel, thumbs, onSell, onRepair, onPrimary, onStop, onClear, onSelectKind, moveMode, attackMode, onMoveMode, onAttackMode, rallyMode, onRallyMode, onClearRally, infantryOnly, guardMode, onGuardMode, touch }: SelProps & { touch?: boolean }) {
   if (sel.type === "none") return null;
-  const cmd = { moveMode, attackMode, onMoveMode, onAttackMode, onStop };
+  const cmd = { moveMode, attackMode, onMoveMode, onAttackMode, onStop, infantryOnly, guardMode, onGuardMode };
   if (sel.type === "multi") {
     return (
       <div className="rounded-2xl bg-black/35 p-2.5 ring-1 ring-white/10">
@@ -367,8 +391,10 @@ interface ActionProps {
   hud: HudSnapshot;
   attackMove: boolean;
   moveMode: boolean;
+  guardMode: boolean;
   boxMode: boolean;
   touch: boolean;
+  onGuardMode: () => void;
   onAttackMove: () => void;
   onMoveMode: () => void;
   onBoxMode: () => void;
@@ -378,7 +404,7 @@ interface ActionProps {
   vertical?: boolean;
 }
 
-export function ActionBar({ hud, attackMove, moveMode, boxMode, touch, onAttackMove, onMoveMode, onBoxMode, onArmy, onStop, onHome, vertical }: ActionProps) {
+export function ActionBar({ hud, attackMove, moveMode, guardMode, boxMode, touch, onAttackMove, onMoveMode, onGuardMode, onBoxMode, onArmy, onStop, onHome, vertical }: ActionProps) {
   return (
     <div className={cn("flex gap-1.5 rounded-2xl bg-[#0d1322]/80 p-1.5 shadow-xl ring-1 ring-white/10 backdrop-blur-md", vertical && "flex-col")}>
       {touch && (
@@ -389,9 +415,15 @@ export function ActionBar({ hud, attackMove, moveMode, boxMode, touch, onAttackM
       <FabBtn label="Selecionar exército" onClick={onArmy}>
         <Users className="size-5" />
       </FabBtn>
-      <FabBtn label="Mover (M)" active={moveMode} disabled={!hud.hasCommandable} onClick={onMoveMode}>
-        <Move className="size-5" />
-      </FabBtn>
+      {hud.infantryOnly ? (
+        <FabBtn label="Proteger área (G)" active={guardMode} onClick={onGuardMode}>
+          <Shield className="size-5" />
+        </FabBtn>
+      ) : (
+        <FabBtn label="Mover (M)" active={moveMode} disabled={!hud.hasCommandable} onClick={onMoveMode}>
+          <Move className="size-5" />
+        </FabBtn>
+      )}
       <FabBtn label="Atacar (A)" active={attackMove} disabled={!hud.hasCommandable} onClick={onAttackMove}>
         <Crosshair className="size-5" />
       </FabBtn>

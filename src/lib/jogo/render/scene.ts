@@ -2,7 +2,7 @@
 
 import * as THREE from "three";
 import { AIR_ALT, BUILDINGS, UNITS, type BuildingKind, type Team } from "../defs";
-import type { Building, Entity, Game, GameEvent, Unit } from "../game";
+import { PROTECT_RADIUS, type Building, type Entity, type Game, type GameEvent, type Unit } from "../game";
 import { BIOMES, type Biome } from "../biomes";
 import { mulberry32, Terrain } from "../map";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
@@ -137,6 +137,7 @@ export class GameRenderer {
   private ghostKey = "";
   private ghostTiles: THREE.Mesh[] = [];
   private rallyFlag: THREE.Group;
+  private guardRings: THREE.Mesh[] = [];
   private raycaster = new THREE.Raycaster();
   private groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
   private clock = 0;
@@ -269,6 +270,19 @@ export class GameRenderer {
     this.rallyFlag = this.makeFlag();
     this.rallyFlag.visible = false;
     this.scene.add(this.rallyFlag);
+    // área vigiada pelas tropas em "Proteger"
+    const ringGeo = new THREE.RingGeometry(PROTECT_RADIUS - 0.1, PROTECT_RADIUS, 72).rotateX(-Math.PI / 2);
+    const discGeo = new THREE.CircleGeometry(PROTECT_RADIUS - 0.1, 72).rotateX(-Math.PI / 2);
+    const ringMat = new THREE.MeshBasicMaterial({ color: "#5fc8ff", transparent: true, opacity: 0.75, depthWrite: false });
+    const discMat = new THREE.MeshBasicMaterial({ color: "#5fc8ff", transparent: true, opacity: 0.08, depthWrite: false });
+    for (let i = 0; i < 6; i++) {
+      const ring = new THREE.Mesh(ringGeo, ringMat);
+      ring.add(new THREE.Mesh(discGeo, discMat));
+      ring.visible = false;
+      ring.renderOrder = 3;
+      this.scene.add(ring);
+      this.guardRings.push(ring);
+    }
 
     // centraliza no conjunto base + unidades iniciais
     let cx = 0;
@@ -1443,6 +1457,30 @@ export class GameRenderer {
         this.views.delete(id);
       }
     }
+
+    // áreas protegidas pelas tropas selecionadas (agrupa postos próximos)
+    const posts: { x: number; z: number; n: number }[] = [];
+    for (const id of g.selected) {
+      const u = g.units.get(id);
+      if (!u || u.team !== 0 || !u.protect) continue;
+      const pr = u.protect;
+      let p = posts.find((q) => Math.hypot(q.x / q.n - pr.x, q.z / q.n - pr.z) < 3.5);
+      if (!p) {
+        p = { x: 0, z: 0, n: 0 };
+        posts.push(p);
+      }
+      p.x += pr.x;
+      p.z += pr.z;
+      p.n++;
+    }
+    let ri = 0;
+    for (const p of posts) {
+      if (ri >= this.guardRings.length) break;
+      const ring = this.guardRings[ri++];
+      ring.visible = true;
+      ring.position.set(p.x / p.n, 0.05, p.z / p.n);
+    }
+    for (; ri < this.guardRings.length; ri++) this.guardRings[ri].visible = false;
 
     // ponto de desembarque do prédio selecionado
     this.rallyFlag.visible = false;
