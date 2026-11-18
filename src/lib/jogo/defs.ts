@@ -21,8 +21,11 @@ export type UnitKind =
   | "harvester"
   | "drone"
   | "heli"
-  | "tufao";
-export type BuildingKind = "hq" | "power" | "refinery" | "barracks" | "factory" | "radar" | "turret" | "inferno" | "helipad" | "aa";
+  | "tufao"
+  | "exo"
+  | "colosso"
+  | "caca";
+export type BuildingKind = "hq" | "power" | "refinery" | "barracks" | "factory" | "radar" | "turret" | "inferno" | "helipad" | "aa" | "techcenter";
 
 export type Faction = "aurora" | "escarlate";
 
@@ -350,6 +353,62 @@ export const UNITS: Record<UnitKind, UnitDef> = {
     weapon: { kind: "bullet", damage: 14, range: 4.3, reload: 0.28 },
     turret: false,
   },
+  // ---- tecnologia avançada (exigem o Centro de Tecnologia; as duas facções)
+  exo: {
+    kind: "exo",
+    name: "Exo-soldado",
+    short: "Exo",
+    desc: "Infantaria de elite em exoesqueleto blindado, com metralhadora pesada. Atinge aeronaves.",
+    cost: 650,
+    buildTime: 11,
+    hp: 230,
+    speed: 1.3,
+    armor: "light",
+    sight: 6,
+    radius: 0.24,
+    infantry: true,
+    producer: "infantry",
+    requires: ["barracks", "techcenter"],
+    weapon: { kind: "bullet", damage: 15, range: 4.4, reload: 0.32, targets: "both" },
+    turret: false,
+  },
+  colosso: {
+    kind: "colosso",
+    name: "Tanque Colosso",
+    short: "Colosso",
+    desc: "Supertanque com canhões duplos e blindagem reforçada. Lento, mas quase indestrutível.",
+    cost: 2300,
+    buildTime: 24,
+    hp: 1250,
+    speed: 1.25,
+    armor: "heavy",
+    sight: 6.5,
+    radius: 0.62,
+    infantry: false,
+    producer: "vehicle",
+    requires: ["factory", "techcenter"],
+    weapon: { kind: "cannon", damage: 58, range: 5.6, reload: 2.0, shots: 2, projectileSpeed: 15, splash: 0.5 },
+    turret: true,
+  },
+  caca: {
+    kind: "caca",
+    name: "Caça Relâmpago",
+    short: "Caça",
+    desc: "Avião caça a jato com mísseis. Muito rápido; derruba aeronaves e ataca blindados.",
+    cost: 1700,
+    buildTime: 18,
+    hp: 320,
+    speed: 5.6,
+    armor: "aircraft",
+    sight: 8,
+    radius: 0.55,
+    infantry: false,
+    air: true,
+    producer: "air",
+    requires: ["helipad", "techcenter"],
+    weapon: { kind: "rocket", damage: 40, range: 5.6, reload: 1.7, shots: 2, projectileSpeed: 17, splash: 0.3, targets: "both" },
+    turret: false,
+  },
 };
 
 export const BUILDINGS: Record<BuildingKind, BuildingDef> = {
@@ -450,7 +509,7 @@ export const BUILDINGS: Record<BuildingKind, BuildingDef> = {
     power: -20,
     sight: 7,
     requires: ["barracks"],
-    weapon: { kind: "cannon", damage: 28, range: 6.2, reload: 1.3, projectileSpeed: 15 },
+    weapon: { kind: "cannon", damage: 34, range: 6.4, reload: 1.0, projectileSpeed: 16, splash: 0.45 },
     buildable: true,
   },
   inferno: {
@@ -495,15 +554,33 @@ export const BUILDINGS: Record<BuildingKind, BuildingDef> = {
     power: -20,
     sight: 8,
     requires: ["radar"],
-    weapon: { kind: "flak", damage: 26, range: 7.5, reload: 0.7, projectileSpeed: 22, splash: 0.5, targets: "air" },
+    weapon: { kind: "flak", damage: 36, range: 7.8, reload: 0.65, projectileSpeed: 24, splash: 0.6, targets: "air" },
+    buildable: true,
+  },
+  techcenter: {
+    kind: "techcenter",
+    name: "Centro de Tecnologia",
+    desc: "Laboratório avançado. Libera o Exo-soldado, o Tanque Colosso e o Caça Relâmpago.",
+    cost: 2500,
+    buildTime: 22,
+    hp: 900,
+    w: 3,
+    h: 3,
+    power: -60,
+    sight: 6,
+    // só depois de erguer todas as outras estruturas da base
+    requires: ["power", "refinery", "barracks", "factory", "radar", "turret", "helipad", "aa"],
     buildable: true,
   },
 };
 
-export const BUILD_ORDER_STRUCTURES: BuildingKind[] = ["power", "refinery", "barracks", "factory", "radar", "turret", "inferno", "helipad", "aa"];
-export const BUILD_ORDER_INFANTRY: UnitKind[] = ["rifle", "rocket", "flamer"];
-export const BUILD_ORDER_VEHICLES: UnitKind[] = ["harvester", "scout", "javali", "tank", "heavy", "artillery", "tempest", "lumen"];
-export const BUILD_ORDER_AIR: UnitKind[] = ["drone", "heli", "tufao"];
+export const BUILD_ORDER_STRUCTURES: BuildingKind[] = ["power", "refinery", "barracks", "factory", "radar", "turret", "inferno", "helipad", "aa", "techcenter"];
+export const BUILD_ORDER_INFANTRY: UnitKind[] = ["rifle", "rocket", "flamer", "exo"];
+export const BUILD_ORDER_VEHICLES: UnitKind[] = ["harvester", "scout", "javali", "tank", "heavy", "artillery", "tempest", "lumen", "colosso"];
+export const BUILD_ORDER_AIR: UnitKind[] = ["drone", "heli", "tufao", "caca"];
+
+// Pré-requisito "turret" vale para a torre de defesa da facção (Torre de Defesa ou Torre Inferno).
+export const DEFENSE_TOWERS: BuildingKind[] = ["turret", "inferno"];
 
 // Construção que produz cada categoria.
 export const PRODUCER_BUILDING: Record<Producer, BuildingKind> = {

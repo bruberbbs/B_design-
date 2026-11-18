@@ -23,6 +23,8 @@ const PLAN: BuildingKind[] = [
   "power",
   "aa",
   "turret",
+  "power",
+  "techcenter",
 ];
 
 // Preferências de produção por facção (peso relativo). Unidades indisponíveis são ignoradas.
@@ -31,16 +33,19 @@ const MIX: Record<Faction, Record<Exclude<Producer, "structure">, [UnitKind, num
     infantry: [
       ["rifle", 5],
       ["rocket", 4],
+      ["exo", 2.5],
     ],
     vehicle: [
       ["tank", 5],
       ["scout", 1.5],
       ["lumen", 3],
       ["artillery", 2],
+      ["colosso", 2.5],
     ],
     air: [
       ["heli", 6],
       ["drone", 3],
+      ["caca", 4],
     ],
   },
   escarlate: {
@@ -48,15 +53,18 @@ const MIX: Record<Faction, Record<Exclude<Producer, "structure">, [UnitKind, num
       ["rifle", 4],
       ["flamer", 3],
       ["rocket", 3],
+      ["exo", 2.5],
     ],
     vehicle: [
       ["heavy", 5],
       ["javali", 2.5],
       ["tempest", 2.5],
+      ["colosso", 2.5],
     ],
     air: [
       ["tufao", 6],
       ["drone", 3],
+      ["caca", 4],
     ],
   },
 };

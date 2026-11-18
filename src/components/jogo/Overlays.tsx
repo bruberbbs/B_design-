@@ -226,6 +226,11 @@ export function StartScreen({ onStart, onHost, onJoin }: StartProps) {
               Tropas atacadas revidam sozinhas e chamam as companheiras por perto. Em movimento normal, elas param para lutar e depois seguem até o
               destino. Use “Mover” quando quiser passar sem parar para lutar.
             </HelpCard>
+            <HelpCard title="Centro de Tecnologia">
+              Depois de erguer todas as estruturas da base (Usina, Refinaria, Quartel, Fábrica, Radar, torre de defesa, Heliporto e Torre
+              Antiaérea), libera-se o Centro de Tecnologia. Pronto, ele permite treinar o Exo-soldado (infantaria de elite), o Tanque Colosso
+              (supertanque de canhões duplos) e o Caça Relâmpago (avião a jato que derruba aeronaves e ataca blindados).
+            </HelpCard>
             <HelpCard title="Proteger área">
               Com só infantaria selecionada, o botão “Mover” vira “Proteger” (atalho: G). Toque nele e depois numa área do mapa: as tropas vão
               até lá, atacam qualquer inimigo que entre no círculo azul e voltam ao posto depois da luta. Seguem de guarda até receber outra ordem.

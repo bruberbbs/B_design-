@@ -96,7 +96,7 @@ export function snapshot(g: Game): HudSnapshot {
     items[p] = kinds.filter((kind) => g.inRoster(0, kind)).map((kind) => {
       const isUnit = kind in UNITS;
       const def = isUnit ? UNITS[kind as UnitKind] : BUILDINGS[kind as BuildingKind];
-      const reqs = def.requires.filter((r) => !g.hasBuilding(0, r));
+      const reqs = def.requires.filter((r) => !g.reqMet(0, r));
       if (!isUnit && !g.hasBuilding(0, "hq")) reqs.unshift("hq");
       const front = q[0];
       const progress = front && front.kind === kind ? front.progress : null;
@@ -106,7 +106,7 @@ export function snapshot(g: Game): HudSnapshot {
         name: def.name,
         cost,
         available: g.canProduce(0, kind),
-        requires: reqs.map((r) => BUILDINGS[r].name).join(", "),
+        requires: reqs.map((r) => g.reqName(0, r)).join(", "),
         queued: q.filter((i) => i.kind === kind).length,
         progress,
         ready: ts.ready === kind,

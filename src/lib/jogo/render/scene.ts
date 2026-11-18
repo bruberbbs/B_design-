@@ -73,7 +73,7 @@ interface UnitView {
   cargoBar: THREE.Mesh | null;
   barW: number;
   blob: THREE.Mesh;
-  info: { kind: string; x: number; z: number };
+  info: { kind: string; x: number; z: number; orbit?: number };
 }
 
 interface BuildingView {
@@ -1357,8 +1357,28 @@ export class GameRenderer {
         m.root.position.y = alt;
         v.ring.position.y = -alt + 0.03;
         v.blob.position.y = -alt + 0.022;
-        const tilt = u.moving ? -0.18 : 0;
-        m.body.rotation.z += (tilt - m.body.rotation.z) * Math.min(1, dt * 4);
+        if (u.kind === "caca") {
+          // caça: parado, fica circulando sobre o ponto; voando, inclina e solta chama da turbina
+          const want = u.moving ? 0 : 1;
+          const k0 = v.info.orbit ?? want;
+          const ko = k0 + (want - k0) * Math.min(1, dt * 2.5);
+          v.info.orbit = ko;
+          m.body.rotation.order = "YXZ";
+          const ph = t * 1.5 + u.id * 1.7;
+          const R = 0.85 * ko;
+          m.body.position.set(Math.cos(ph) * R, 0.2, Math.sin(ph) * R);
+          if (ko > 0.5) m.body.rotation.y = -(ph + Math.PI / 2);
+          m.body.rotation.x = 0.55 * ko;
+          m.body.rotation.z = 0;
+          if (Math.random() < dt * 30 && visible) {
+            const hx = -Math.cos(-m.body.rotation.y) * 0.62;
+            const hz = -Math.sin(-m.body.rotation.y) * 0.62;
+            this.fire.emit({ x: u.x + m.body.position.x + hx, y: alt + 0.2, z: u.z + m.body.position.z + hz, life: 0.18, size0: 0.16, size1: 0.04, color: "#ffe2a0", color1: "#ff6a20", alpha: 0.8 });
+          }
+        } else {
+          const tilt = u.moving ? -0.18 : 0;
+          m.body.rotation.z += (tilt - m.body.rotation.z) * Math.min(1, dt * 4);
+        }
         const spin = dt * (u.kind === "drone" ? 45 : 30);
         m.rotors.forEach((r, i) => {
           if ((u.kind === "heli" || u.kind === "tufao") && i === 0) r.rotation.z += spin;

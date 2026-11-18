@@ -6,6 +6,7 @@ import {
   BUILDINGS,
   canHitLayer,
   DAMAGE_TABLE,
+  DEFENSE_TOWERS,
   DIFFICULTY,
   FACTIONS,
   HARVEST_CAPACITY,
@@ -341,15 +342,30 @@ export class Game {
     return availableTo(d, this.factions[team]);
   }
 
+  // Pré-requisito atendido? "turret" aceita a torre de defesa de qualquer facção.
+  reqMet(team: Team, r: BuildingKind) {
+    if (r === "turret") return DEFENSE_TOWERS.some((k) => this.hasBuilding(team, k));
+    return this.hasBuilding(team, r);
+  }
+
+  // Nome do pré-requisito como o time o conhece (a Legião usa a Torre Inferno).
+  reqName(team: Team, r: BuildingKind) {
+    if (r === "turret") {
+      const k = DEFENSE_TOWERS.find((t) => this.inRoster(team, t)) ?? "turret";
+      return BUILDINGS[k].name;
+    }
+    return BUILDINGS[r].name;
+  }
+
   canProduce(team: Team, kind: UnitKind | BuildingKind) {
     if (!this.inRoster(team, kind)) return false;
     if (kind in UNITS) {
       const d = UNITS[kind as UnitKind];
-      return d.requires.every((r) => this.hasBuilding(team, r));
+      return d.requires.every((r) => this.reqMet(team, r));
     }
     const d = BUILDINGS[kind as BuildingKind];
     if (!d.buildable || !this.hasBuilding(team, "hq")) return false;
-    return d.requires.every((r) => this.hasBuilding(team, r));
+    return d.requires.every((r) => this.reqMet(team, r));
   }
 
   producerOf(kind: UnitKind | BuildingKind): Producer {
@@ -1567,8 +1583,9 @@ export class Game {
     const w = BUILDINGS[b.kind].weapon;
     if (!w) return;
     if (this.time - b.bornAt < 1.5) return;
-    if (ts.lowPower) return;
-    b.cooldown -= dt;
+    // sem energia suficiente as defesas continuam, mas giram e recarregam mais devagar
+    const slow = ts.lowPower ? 0.5 : 1;
+    b.cooldown -= dt * slow;
     const cx = b.tx + 0.5;
     const cz = b.tz + 0.5;
     let target = this.get(b.targetId);
@@ -1588,7 +1605,7 @@ export class Game {
     if (!target) return;
     const c = this.center(target);
     const aim = Math.atan2(c.z - cz, c.x - cx);
-    b.turret = turnToward(b.turret, aim, 3 * dt);
+    b.turret = turnToward(b.turret, aim, 3 * dt * slow);
     if (Math.abs(angleDiff(b.turret, aim)) < 0.15 && b.cooldown <= 0) {
       b.cooldown = w.reload;
       b.recoil = 1;
@@ -1611,7 +1628,7 @@ export class Game {
       ts.powerProd = Math.round(prod);
       ts.powerUse = use;
       ts.lowPower = use > prod;
-      if (ts.lowPower && !was) this.msg("Energia baixa! Construa mais usinas.", "warn", team);
+      if (ts.lowPower && !was) this.msg("Energia baixa! Defesas e produção mais lentas — construa mais usinas.", "warn", team);
     }
   }
 

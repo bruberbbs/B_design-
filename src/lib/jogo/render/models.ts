@@ -381,9 +381,9 @@ export class ModelKit {
     let height = 0.5;
     const camo = this.camo(team);
 
-    const soldier = (gear: "rifle" | "rocket" | "flamer") => {
+    const soldier = (gear: "rifle" | "rocket" | "flamer" | "exo") => {
       const fig = new THREE.Group();
-      fig.scale.setScalar(1.25);
+      fig.scale.setScalar(gear === "exo" ? 1.55 : 1.25);
       body.add(fig);
       const unif = this.uniform(team);
       const vest = this.gear(team);
@@ -407,7 +407,27 @@ export class ModelKit {
         this.add(fig, this.box(0.022, 0.02, 0.008, 0.003), this.team(team), [0, 0.33, z * 1.02]);
       }
       const gm = this.gunmetal;
-      if (gear === "rocket") {
+      if (gear === "exo") {
+        // exoesqueleto: placas blindadas, ombreiras, visor luminoso e mochila de energia
+        const plate = camo;
+        this.add(fig, this.box(0.085, 0.09, 0.11, 0.02), plate, [0.012, 0.3, 0]);
+        this.add(fig, this.box(0.02, 0.05, 0.08, 0.008), gm, [0.058, 0.28, 0]);
+        for (const z of [0.062, -0.062]) {
+          this.add(fig, this.sphere(0.034, 12, 8, Math.PI * 2, Math.PI / 2), plate, [0.0, 0.335, z], [0, 0, 0], [1, 0.8, 1]);
+          this.add(fig, this.box(0.045, 0.012, 0.02, 0.004), this.team(team), [0.0, 0.345, z * 1.25]);
+          this.add(fig, this.box(0.05, 0.06, 0.03, 0.01), plate, [0.012, 0.13, z * 0.5]);
+        }
+        this.add(fig, this.box(0.07, 0.11, 0.09, 0.016), gm, [-0.07, 0.31, 0]);
+        for (const z of [0.025, -0.025]) this.add(fig, this.cyl(0.012, 0.012, 0.1, 8), this.steel, [-0.11, 0.31, z]);
+        this.add(fig, this.sphere(0.01, 8, 6), this.mat("exocore", "#9be8ff", { emissive: "#38c8ff", emissiveIntensity: 2 }), [-0.115, 0.36, 0]);
+        this.add(fig, this.sphere(0.042, 14, 10), plate, [0.004, 0.392, 0], [0, 0, 0], [1, 0.92, 1]);
+        this.add(fig, this.box(0.012, 0.016, 0.06, 0.004), this.mat("visor", "#bff4ff", { emissive: "#4fd8ff", emissiveIntensity: 1.8, roughness: 0.2 }), [0.042, 0.39, 0]);
+        // metralhadora rotativa pesada
+        this.add(fig, this.box(0.13, 0.045, 0.04, 0.008), gm, [0.08, 0.29, -0.06]);
+        for (let i = 0; i < 4; i++) this.add(fig, this.cyl(0.006, 0.006, 0.14, 6), gm, [0.2, 0.29 + Math.cos(i * 1.57) * 0.012, -0.06 + Math.sin(i * 1.57) * 0.012], [0, 0, Math.PI / 2]);
+        this.add(fig, this.cyl(0.02, 0.02, 0.02, 10), this.steel, [0.27, 0.29, -0.06], [0, 0, Math.PI / 2]);
+        this.add(fig, this.box(0.05, 0.05, 0.05, 0.01), this.mat("ammo", "#4b4f3a", { roughness: 0.7 }), [0.02, 0.25, -0.085]);
+      } else if (gear === "rocket") {
         this.add(fig, this.cyl(0.026, 0.026, 0.32, 14), camo, [0.03, 0.36, -0.06], [0, 0, Math.PI / 2]);
         this.add(fig, this.cyl(0.032, 0.026, 0.04, 14), gm, [0.2, 0.36, -0.06], [0, 0, Math.PI / 2]);
         this.add(fig, this.box(0.03, 0.025, 0.015, 0.004), gm, [0.06, 0.385, -0.035]);
@@ -437,6 +457,81 @@ export class ModelKit {
       case "flamer":
         soldier("flamer");
         break;
+      case "exo":
+        soldier("exo");
+        height = 0.68;
+        break;
+      case "colosso": {
+        // supertanque: lagartas duplas, casco largo, torre com dois canhões e lançador de mísseis
+        const S = 1.38;
+        const g = new THREE.Group();
+        g.scale.setScalar(S);
+        body.add(g);
+        for (const z of [0.2, 0.34, -0.2, -0.34]) this.trackUnit(g, 0.94, z, 0.15, 0.12, 6);
+        const hull: [number, number][] = [[-0.46, 0.08], [0.36, 0.08], [0.5, 0.17], [0.32, 0.27], [-0.44, 0.27], [-0.49, 0.2]];
+        this.add(g, this.side("colHull", hull, 0.58), camo);
+        for (const z of [0.42, -0.42]) {
+          this.add(g, this.box(0.9, 0.08, 0.02, 0.006), camo, [-0.02, 0.2, z]);
+          for (let i = 0; i < 5; i++) this.add(g, this.box(0.15, 0.06, 0.012, 0.004), this.gunmetal, [-0.36 + i * 0.18, 0.2, z * 1.02]);
+        }
+        this.add(g, this.box(0.08, 0.06, 0.5, 0.01), this.gunmetal, [-0.47, 0.22, 0]);
+        for (const z of [0.18, -0.18]) this.add(g, this.cyl(0.04, 0.04, 0.1, 12), this.mat("fuel", "#3b4630", { roughness: 0.6, metalness: 0.4 }), [-0.42, 0.3, z], [Math.PI / 2, 0, 0]);
+        for (const z of [0.16, -0.16]) this.add(g, this.cyl(0.018, 0.018, 0.012, 10), this.lampWhite, [0.43, 0.22, z], [0, 0, Math.PI / 2]);
+        this.insignia(g, team, -0.1, 0.2, 0.435, 0, 1.4);
+        this.insignia(g, team, -0.1, 0.2, -0.435, 0, 1.4);
+        const t = this.part(g, "turret", [-0.05, 0.27, 0]);
+        this.add(t, this.top("colTur", [[0.26, 0.07], [0.17, 0.2], [-0.16, 0.22], [-0.3, 0.15], [-0.32, -0.15], [-0.16, -0.22], [0.17, -0.2], [0.26, -0.07]], 0.13), camo);
+        this.add(t, this.box(0.16, 0.06, 0.4, 0.01), camo, [-0.34, 0.06, 0]);
+        this.add(t, this.box(0.3, 0.012, 0.03, 0.004), this.team(team), [-0.02, 0.145, 0]);
+        // lançador de mísseis no lado da torre
+        this.add(t, this.box(0.16, 0.08, 0.08, 0.01), this.gunmetal, [-0.06, 0.1, 0.26]);
+        for (const [dy, dz] of [[0.02, 0.02], [0.02, -0.02], [-0.02, 0.02], [-0.02, -0.02]] as [number, number][])
+          this.add(t, this.cyl(0.014, 0.014, 0.012, 8), this.dark, [0.02, 0.1 + dy, 0.26 + dz], [0, 0, Math.PI / 2]);
+        this.add(t, this.cyl(0.05, 0.05, 0.03, 14), camo, [-0.12, 0.15, -0.09]);
+        this.add(t, this.cyl(0.003, 0.003, 0.1, 5), this.gunmetal, [-0.08, 0.19, -0.09], [0, 0, Math.PI / 2]);
+        this.antenna(t, -0.25, 0.13, -0.15, team, 0.34);
+        const b = this.part(t, "barrel", [0.25, 0.065, 0]);
+        this.add(b, this.box(0.08, 0.09, 0.2, 0.012), camo);
+        for (const z of [0.05, -0.05]) {
+          this.add(b, this.cyl(0.019, 0.024, 0.58, 12), this.gunmetal, [0.32, 0, z], [0, 0, Math.PI / 2]);
+          this.add(b, this.cyl(0.032, 0.032, 0.09, 12), camo, [0.24, 0, z], [0, 0, Math.PI / 2]);
+          this.add(b, this.box(0.055, 0.042, 0.042, 0.005), this.gunmetal, [0.62, 0, z]);
+        }
+        height = 0.65 * S;
+        break;
+      }
+      case "caca": {
+        // caça a jato: fuselagem afilada, asas em delta, deriva dupla e mísseis sob as asas
+        const paint = this.mat("jetpaint", "#7b838d", { roughness: 0.45, metalness: 0.35 });
+        const g = new THREE.Group();
+        g.scale.setScalar(1.15);
+        body.add(g);
+        const fus = this.lathe("jetFus", [[0.0, -0.5], [0.055, -0.49], [0.075, -0.42], [0.08, -0.12], [0.074, 0.14], [0.058, 0.3], [0.032, 0.43], [0.0, 0.54]], 20);
+        this.add(g, fus, paint, [0, 0, 0], [0, 0, -Math.PI / 2], [0.8, 1, 1]);
+        this.add(g, this.sphere(0.05, 14, 10), this.glass, [0.22, 0.05, 0], [0, 0, 0], [2.3, 0.85, 0.85]);
+        this.add(g, this.top("jetWing", [[0.16, 0.0], [-0.2, 0.52], [-0.32, 0.52], [-0.32, -0.52], [-0.2, -0.52]], 0.018, 0.004), paint, [0, -0.015, 0]);
+        this.add(g, this.top("jetTail", [[-0.34, 0.0], [-0.45, 0.22], [-0.52, 0.22], [-0.52, -0.22], [-0.45, -0.22]], 0.012, 0.003), paint, [0, 0.0, 0]);
+        for (const z of [0.07, -0.07]) {
+          this.add(g, this.side("jetFin", [[-0.5, 0.03], [-0.33, 0.03], [-0.43, 0.22], [-0.51, 0.22]], 0.012, 0.003), paint, [0, 0, z], [z > 0 ? -0.28 : 0.28, 0, 0]);
+          this.add(g, this.box(0.2, 0.05, 0.035, 0.01), this.gunmetal, [0.0, -0.02, z * 1.25]);
+          this.add(g, this.box(0.05, 0.012, 0.03, 0.004), this.team(team), [-0.45, 0.17, z * 1.6]);
+        }
+        // pontas das asas e faixa na cor do time
+        for (const z of [0.49, -0.49]) this.add(g, this.box(0.11, 0.022, 0.05, 0.005), this.team(team), [-0.26, -0.004, z]);
+        this.add(g, this.box(0.3, 0.004, 0.03, 0.002), this.team(team), [0.02, 0.064, 0]);
+        // mísseis sob as asas
+        for (const z of [0.22, -0.22, 0.33, -0.33]) {
+          this.add(g, this.cyl(0.014, 0.014, 0.2, 8), this.whitePaint, [-0.12, -0.04, z], [0, 0, Math.PI / 2]);
+          this.add(g, this.cyl(0.0, 0.014, 0.04, 8), this.lampRed, [-0.0, -0.04, z], [0, 0, -Math.PI / 2]);
+        }
+        // bocais com pós-combustão
+        for (const z of [0.03, -0.03]) {
+          this.add(g, this.cyl(0.03, 0.034, 0.05, 12), this.gunmetal, [-0.51, 0, z], [0, 0, Math.PI / 2]);
+          this.add(g, this.cyl(0.024, 0.024, 0.01, 12), this.mat("afterburn", "#ffcf80", { emissive: "#ff8a2a", emissiveIntensity: 2.6 }), [-0.54, 0, z], [0, 0, Math.PI / 2]);
+        }
+        height = 0.2;
+        break;
+      }
       case "scout": {
         // jipe com metralhadora
         this.add(body, this.side("jeepbody", [[-0.3, 0.1], [0.24, 0.1], [0.32, 0.15], [0.32, 0.2], [0.12, 0.215], [0.08, 0.22], [-0.3, 0.22]], 0.3), camo);
@@ -872,6 +967,54 @@ export class ModelKit {
         for (let i = 0; i < 6; i++) this.add(s, this.box(0.055, 0.006, 0.54, 0.002), this.gunmetal, [0.03, 0.05 + i * 0.035, 0], [0, 0, -0.25]);
         this.add(inner, this.sphere(0.02, 8, 6), this.lampRed, [tx, 1.4, tz]);
         height = 1.5;
+        break;
+      }
+      case "techcenter": {
+        // laboratório avançado: bloco de vidro, cúpula de pesquisa, antena giratória e torre de cristal
+        plinth(2.95, 2.95);
+        const lab = this.mat("labglow", "#c9f3ff", { emissive: "#6fd6ff", emissiveIntensity: 0.9, roughness: 0.2 });
+        this.add(inner, this.box(2.1, 0.5, 1.2, 0.02), wall, [-0.35, 0.31, 0.6]);
+        this.add(inner, this.box(2.14, 0.04, 1.24, 0.01), conc, [-0.35, 0.58, 0.6]);
+        this.add(inner, this.box(2.0, 0.2, 0.02, 0.004), this.glass, [-0.35, 0.36, 1.205]);
+        this.add(inner, this.box(1.96, 0.02, 0.022, 0.004), lab, [-0.35, 0.47, 1.21]);
+        this.add(inner, this.box(2.1, 0.035, 0.035, 0.005), this.team(team), [-0.35, 0.53, 1.215]);
+        this.add(inner, this.box(0.02, 0.2, 1.1, 0.004), this.glass, [-1.405, 0.36, 0.6]);
+        // painéis solares no teto
+        for (let i = 0; i < 4; i++) {
+          this.add(inner, this.box(0.4, 0.02, 0.32, 0.004), this.mat("solar", "#1b2a44", { roughness: 0.15, metalness: 0.6, envMapIntensity: 1.5 }), [-1.05 + i * 0.47, 0.66, 0.65], [0.35, 0, 0]);
+          this.add(inner, this.box(0.02, 0.08, 0.02, 0.004), this.steel, [-1.05 + i * 0.47, 0.62, 0.72]);
+        }
+        // cúpula de pesquisa
+        this.add(inner, this.cyl(0.62, 0.66, 0.34, 32), conc, [0.52, 0.23, -0.55]);
+        this.add(inner, this.cyl(0.625, 0.625, 0.04, 32), this.team(team), [0.52, 0.38, -0.55]);
+        this.add(inner, this.sphere(0.6, 32, 16, Math.PI * 2, Math.PI / 2), this.whitePaint, [0.52, 0.4, -0.55]);
+        this.add(inner, this.box(0.1, 0.5, 0.06, 0.01), this.dark, [0.52, 0.72, -0.08], [-0.55, 0, 0]);
+        const sp = this.part(inner, "spin", [0.52, 1.0, -0.55]);
+        this.add(sp, this.cyl(0.04, 0.05, 0.1, 12), this.gunmetal, [0, 0.05, 0]);
+        this.add(sp, this.torus(0.22, 0.012), this.steel, [0, 0.12, 0], [Math.PI / 2, 0, 0]);
+        for (let i = 0; i < 3; i++) {
+          const a = (i * Math.PI * 2) / 3;
+          this.add(sp, this.box(0.22, 0.012, 0.012, 0.003), this.steel, [Math.cos(a) * 0.11, 0.12, Math.sin(a) * 0.11], [0, -a, 0]);
+          this.add(sp, this.sphere(0.025, 10, 8), lab, [Math.cos(a) * 0.22, 0.12, Math.sin(a) * 0.22]);
+        }
+        // torre com cristal energizado
+        const tx = -1.0;
+        const tz = -0.75;
+        this.add(inner, this.cyl(0.16, 0.22, 0.2, 16), conc, [tx, 0.16, tz]);
+        this.add(inner, this.cyl(0.05, 0.08, 1.0, 12), this.steel, [tx, 0.75, tz]);
+        for (const y of [0.45, 0.75, 1.05]) this.add(inner, this.torus(0.09, 0.012), this.team(team), [tx, y, tz], [Math.PI / 2, 0, 0]);
+        this.add(inner, this.cyl(0.0, 0.1, 0.22, 6), this.crystal, [tx, 1.38, tz]);
+        this.add(inner, this.cyl(0.1, 0.0, 0.14, 6), this.crystal, [tx, 1.2, tz]);
+        // dutos e tanques de criogenia
+        for (const [x, z] of [[-0.35, -0.55], [-0.05, -0.9]] as [number, number][]) {
+          this.add(inner, this.capsule(0.11, 0.22), this.steel, [x, 0.22, z]);
+          this.add(inner, this.box(0.04, 0.04, 0.4, 0.01), this.gunmetal, [x, 0.12, z + 0.25]);
+        }
+        this.add(inner, this.box(0.5, 0.25, 0.04, 0.01), this.dark, [-0.35, 0.19, 1.21]);
+        this.sandbagRow(inner, 0.5, 1.35, 1.35, 1.35);
+        this.flag(inner, team, 1.25, 0.4, 0.95);
+        glow = lab;
+        height = 1.55;
         break;
       }
       case "turret":
