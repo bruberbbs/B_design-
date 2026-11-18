@@ -209,7 +209,7 @@ export class InputController {
   }
 
   private canCommand() {
-    return this.selectedOwn().some((e) => e.type === "unit" || e.kind === "barracks" || e.kind === "factory");
+    return this.selectedOwn().some((e) => e.type === "unit" || e.kind === "barracks" || e.kind === "factory" || e.kind === "helipad");
   }
 
   private command(px: number, py: number, id: number | null) {

@@ -15,10 +15,13 @@ const PLAN: BuildingKind[] = [
   "turret",
   "refinery",
   "power",
+  "helipad",
+  "aa",
   "barracks",
   "turret",
   "factory",
   "power",
+  "aa",
   "turret",
 ];
 
@@ -82,8 +85,12 @@ export class AIController {
     // 4) exército
     const reserve = ts.queues.structure.length > 0 ? 400 : 0;
     if (ts.credits > reserve + 150) {
+      const enemyAir = this.enemyAirCount();
       if (ts.queues.infantry.length < 2 && g.canProduce(this.team, "rifle")) {
-        g.queueProduction(this.team, Math.random() < 0.55 ? "rifle" : "rocket");
+        g.queueProduction(this.team, Math.random() < (enemyAir > 0 ? 0.3 : 0.55) ? "rifle" : "rocket");
+      }
+      if (ts.queues.air.length < 1 && g.canProduce(this.team, "heli")) {
+        g.queueProduction(this.team, Math.random() < 0.65 ? "heli" : "drone");
       }
       if (ts.queues.vehicle.length < 2 && g.canProduce(this.team, "tank")) {
         const opts: [UnitKind, number][] = [
@@ -113,10 +120,19 @@ export class AIController {
     this.attack();
   }
 
+  private enemyAirCount() {
+    let n = 0;
+    for (const u of this.game.units.values()) if (u.team !== this.team && UNITS[u.kind].air) n++;
+    return n;
+  }
+
   private nextStructure(): BuildingKind | null {
     const g = this.game;
     const ts = g.teams[this.team];
     if (ts.powerUse + 30 > ts.powerProd && g.canProduce(this.team, "power")) return "power";
+    // reage a aeronaves inimigas com antiaéreas
+    const aa = g.countBuildings(this.team, "aa");
+    if (g.canProduce(this.team, "aa") && aa < Math.min(4, Math.ceil(this.enemyAirCount() / 2) + 1) && this.enemyAirCount() > 0) return "aa";
     const have: Partial<Record<BuildingKind, number>> = {};
     for (const b of g.buildings.values()) if (b.team === this.team) have[b.kind] = (have[b.kind] ?? 0) + 1;
     const need: Partial<Record<BuildingKind, number>> = {};
@@ -152,7 +168,7 @@ export class AIController {
           const pz = tz + d.h / 2 - c.z;
           const forward = (px * towardEnemy.x + pz * towardEnemy.z) / len;
           let score = Math.hypot(px, pz);
-          if (kind === "turret") score = Math.abs(Math.hypot(px, pz) - 7) - forward * 0.8 + Math.random() * 2;
+          if (kind === "turret" || kind === "aa") score = Math.abs(Math.hypot(px, pz) - 7) - forward * 0.8 + Math.random() * 2;
           else score -= forward * 0.15;
           if (score < bestScore) {
             bestScore = score;

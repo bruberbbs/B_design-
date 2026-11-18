@@ -1,17 +1,21 @@
 // Simulação do jogo: unidades, construções, economia, combate e visão.
 
 import {
+  AIR_ALT,
   BUILDINGS,
+  canHitLayer,
   DAMAGE_TABLE,
   DIFFICULTY,
   HARVEST_CAPACITY,
   HARVEST_SCOOP,
   PLACE_RADIUS,
+  PRODUCER_BUILDING,
   START_CREDITS,
   UNITS,
   type BuildingKind,
   type Difficulty,
   type Producer,
+  type TargetLayer,
   type Team,
   type UnitKind,
   type Weapon,
@@ -102,6 +106,8 @@ export interface Projectile {
   damage: number;
   splash: number;
   arc: number;
+  ty: number;
+  targets: TargetLayer;
   sourceId: number;
 }
 
@@ -126,9 +132,9 @@ export interface TeamState {
 }
 
 export type GameEvent =
-  | { type: "fire"; weapon: WeaponKind; x: number; z: number; y: number; tx: number; tz: number; team: Team; sourceId: number }
-  | { type: "impact"; weapon: WeaponKind; x: number; z: number; big: boolean }
-  | { type: "death"; x: number; z: number; infantry: boolean; size: number }
+  | { type: "fire"; weapon: WeaponKind; x: number; z: number; y: number; tx: number; tz: number; ty: number; team: Team; sourceId: number }
+  | { type: "impact"; weapon: WeaponKind; x: number; z: number; y: number; big: boolean }
+  | { type: "death"; x: number; z: number; y: number; infantry: boolean; air: boolean; size: number }
   | { type: "buildingDeath"; x: number; z: number; w: number; h: number }
   | { type: "placed"; x: number; z: number; w: number; h: number; team: Team }
   | { type: "sold"; x: number; z: number; w: number; h: number }
@@ -145,6 +151,14 @@ export function rectDist(px: number, pz: number, b: { tx: number; tz: number; w:
   const dx = Math.max(b.tx - px, 0, px - (b.tx + b.w));
   const dz = Math.max(b.tz - pz, 0, pz - (b.tz + b.h));
   return Math.hypot(dx, dz);
+}
+
+export function isAir(e: Entity | undefined): boolean {
+  return !!e && e.type === "unit" && !!UNITS[e.kind].air;
+}
+
+function layerHits(t: TargetLayer, air: boolean) {
+  return t === "both" || (t === "air") === air;
 }
 
 export function angleDiff(a: number, b: number) {
@@ -182,6 +196,7 @@ export class Game {
   private powerTimer = 0;
   private oreTimer = 0;
   private endTimer = 0;
+  private airAlerted = false;
 
   constructor(difficulty: Difficulty, seed = 7) {
     this.difficulty = difficulty;
@@ -193,7 +208,7 @@ export class Game {
       powerProd: 0,
       powerUse: 0,
       lowPower: false,
-      queues: { structure: [], infantry: [], vehicle: [] },
+      queues: { structure: [], infantry: [], vehicle: [], air: [] },
       ready: null,
       visible: new Uint8Array(n),
       explored: new Uint8Array(n),
@@ -424,7 +439,7 @@ export class Game {
       const ts = this.teams[team];
       const powerMul = ts.lowPower ? 0.45 : 1;
       const aiMul = team === 1 ? DIFFICULTY[this.difficulty].buildSpeed : 1;
-      for (const p of ["structure", "infantry", "vehicle"] as Producer[]) {
+      for (const p of ["structure", "infantry", "vehicle", "air"] as Producer[]) {
         const q = ts.queues[p];
         if (q.length === 0) continue;
         const item = q[0];
@@ -434,7 +449,7 @@ export class Game {
           q.shift();
           continue;
         }
-        const factoryKind: BuildingKind = p === "structure" ? "hq" : p === "infantry" ? "barracks" : "factory";
+        const factoryKind = PRODUCER_BUILDING[p];
         const count = this.countBuildings(team, factoryKind);
         const mul = powerMul * aiMul * (1 + 0.35 * Math.max(0, count - 1));
         const cost = this.costOf(item.kind);
@@ -468,7 +483,7 @@ export class Game {
 
   private spawnProduced(team: Team, kind: UnitKind) {
     const d = UNITS[kind];
-    const fk: BuildingKind = d.producer === "infantry" ? "barracks" : "factory";
+    const fk = PRODUCER_BUILDING[d.producer];
     let src: Building | undefined;
     const prim = this.primary[d.producer];
     if (team === 0 && prim) {
@@ -477,6 +492,17 @@ export class Game {
     }
     if (!src) for (const b of this.buildings.values()) if (b.team === team && b.kind === fk) { src = b; break; }
     if (!src) return false;
+    if (d.air) {
+      // decola do heliporto
+      const cx = src.tx + src.w / 2;
+      const cz = src.tz + src.h / 2;
+      const u = this.addUnit(team, kind, cx, cz);
+      u.angle = Math.PI / 2;
+      u.turret = u.angle;
+      const dest = src.rally ?? { x: cx + (Math.random() - 0.5) * 2, z: cz + 2 + Math.random() };
+      this.issueMove([u.id], dest.x, dest.z, false, true);
+      return true;
+    }
     const ex = this.exitTile(src);
     const free = this.path.nearestFree(ex.x, ex.z, 6);
     if (!free) return false;
@@ -517,6 +543,7 @@ export class Game {
       if (!this.inBounds(e.x, e.z) || this.isBlocked(e.z * w + e.x)) return false;
     }
     for (const u of this.units.values()) {
+      if (UNITS[u.kind].air) continue;
       if (u.x > tx - 0.2 && u.x < tx + d.w + 0.2 && u.z > tz - 0.2 && u.z < tz + d.h + 0.2) return false;
     }
     let near = false;
@@ -594,9 +621,18 @@ export class Game {
   private slotsAround(cx: number, cz: number, units: Unit[]) {
     const tx = Math.floor(cx);
     const tz = Math.floor(cz);
+    const air = units.filter((u) => UNITS[u.kind].air);
     const inf = units.filter((u) => UNITS[u.kind].infantry);
-    const veh = units.filter((u) => !UNITS[u.kind].infantry);
+    const veh = units.filter((u) => !UNITS[u.kind].infantry && !UNITS[u.kind].air);
     const slots = new Map<number, { x: number; z: number }>();
+    // aeronaves: espiral em volta do ponto, ignorando o terreno
+    air.forEach((u, i) => {
+      const a = i * 2.4;
+      const r = i === 0 ? 0 : 0.55 * Math.sqrt(i) + 0.3;
+      const x = Math.max(0.5, Math.min(this.map.w - 0.5, cx + Math.cos(a) * r));
+      const z = Math.max(0.5, Math.min(this.map.h - 0.5, cz + Math.sin(a) * r));
+      slots.set(u.id, { x, z });
+    });
     const used = new Set<number>();
     const tiles: Pt[] = [];
     for (let r = 0; r < 10 && tiles.length < units.length + 4; r++) {
@@ -636,6 +672,14 @@ export class Game {
   }
 
   setPath(u: Unit, x: number, z: number, adjustGoal = false) {
+    if (UNITS[u.kind].air) {
+      // voo em linha reta
+      const tx = Math.max(0, Math.min(this.map.w - 1, Math.floor(x)));
+      const tz = Math.max(0, Math.min(this.map.h - 1, Math.floor(z)));
+      u.path = [{ x: tx, z: tz }];
+      u.stuckTimer = 0;
+      return;
+    }
     const p = this.path.find(Math.floor(u.x), Math.floor(u.z), Math.floor(x), Math.floor(z));
     u.path = p ?? [];
     u.stuckTimer = 0;
@@ -672,7 +716,8 @@ export class Game {
     if (!t) return;
     for (const id of ids) {
       const u = this.units.get(id);
-      if (!u || !UNITS[u.kind].weapon) continue;
+      const w = u ? UNITS[u.kind].weapon : undefined;
+      if (!u || !w || !canHitLayer(w, isAir(t))) continue;
       u.order = "attack";
       u.targetId = targetId;
       u.goal = null;
@@ -734,7 +779,7 @@ export class Game {
     const target = this.get(targetId);
     if (!units.length) {
       for (const e of sel) {
-        if (e.type === "building" && (e.kind === "barracks" || e.kind === "factory")) {
+        if (e.type === "building" && (e.kind === "barracks" || e.kind === "factory" || e.kind === "helipad")) {
           e.rally = { x, z };
           this.events.push({ type: "click" });
         }
@@ -789,7 +834,8 @@ export class Game {
       }
     }
     // retaliação
-    if (target.type === "unit" && attacker && UNITS[target.kind].weapon && target.order !== "move") {
+    const tw = target.type === "unit" ? UNITS[target.kind].weapon : undefined;
+    if (target.type === "unit" && attacker && tw && canHitLayer(tw, isAir(attacker)) && target.order !== "move") {
       const cur = this.get(target.targetId);
       if (!cur) {
         target.targetId = attacker.id;
@@ -806,7 +852,7 @@ export class Game {
       this.selected.delete(e.id);
       this.teams[e.team].stats.lost++;
       const d = UNITS[e.kind];
-      this.events.push({ type: "death", x: e.x, z: e.z, infantry: d.infantry, size: d.radius });
+      this.events.push({ type: "death", x: e.x, z: e.z, y: d.air ? AIR_ALT : 0, infantry: d.infantry, air: !!d.air, size: d.radius });
     } else {
       if (!this.buildings.has(e.id)) return;
       this.removeBuilding(e);
@@ -825,7 +871,8 @@ export class Game {
 
   private fire(src: Entity, target: Entity, w: Weapon, sx: number, sz: number, sy: number) {
     const tc = target.type === "unit" ? { x: target.x, z: target.z } : this.aimPoint(target, sx, sz);
-    this.events.push({ type: "fire", weapon: w.kind, x: sx, z: sz, y: sy, tx: tc.x, tz: tc.z, team: src.team, sourceId: src.id });
+    const ty = isAir(target) ? AIR_ALT : target.type === "building" ? 0.45 : 0.25;
+    this.events.push({ type: "fire", weapon: w.kind, x: sx, z: sz, y: sy, tx: tc.x, tz: tc.z, ty, team: src.team, sourceId: src.id });
     if (!w.projectileSpeed) {
       this.damage(target, w.damage * (0.85 + Math.random() * 0.3), w.kind, src);
       return;
@@ -849,7 +896,9 @@ export class Game {
       dur: Math.max(0.12, dist / w.projectileSpeed),
       damage: w.damage,
       splash: w.splash ?? 0,
-      arc: w.kind === "shell" ? 1.2 + dist * 0.25 : w.kind === "rocket" ? 0.35 : 0,
+      arc: w.kind === "shell" ? 1.2 + dist * 0.25 : w.kind === "rocket" && !isAir(target) && !isAir(src) ? 0.35 : 0,
+      ty,
+      targets: w.targets ?? "ground",
       sourceId: src.id,
     });
   }
@@ -873,16 +922,17 @@ export class Game {
       const k = Math.min(1, p.t / p.dur);
       p.x = p.sx + (p.tx - p.sx) * k;
       p.z = p.sz + (p.tz - p.sz) * k;
-      p.y = p.sy * (1 - k) + 0.25 * k + Math.sin(Math.PI * k) * p.arc;
+      p.y = p.sy * (1 - k) + p.ty * k + Math.sin(Math.PI * k) * p.arc;
       if (k < 1) {
         keep.push(p);
         continue;
       }
       const src = this.get(p.sourceId);
       if (p.splash > 0) {
-        this.events.push({ type: "impact", weapon: p.kind, x: p.tx, z: p.tz, big: p.kind === "shell" });
+        this.events.push({ type: "impact", weapon: p.kind, x: p.tx, z: p.tz, y: p.ty, big: p.kind === "shell" });
         for (const e of [...this.units.values(), ...this.buildings.values()]) {
           if (e.team === p.team) continue;
+          if (!layerHits(p.targets, isAir(e))) continue;
           const d = this.distTo(p.tx, p.tz, e);
           if (d <= p.splash) {
             const direct = e.id === p.targetId;
@@ -891,7 +941,7 @@ export class Game {
           }
         }
       } else {
-        this.events.push({ type: "impact", weapon: p.kind, x: p.tx, z: p.tz, big: false });
+        this.events.push({ type: "impact", weapon: p.kind, x: p.tx, z: p.tz, y: p.ty, big: false });
         if (tgt) this.damage(tgt, p.damage * (0.9 + Math.random() * 0.2), p.kind, src);
       }
     }
@@ -905,6 +955,7 @@ export class Game {
     const vis = this.teams[team].visible;
     for (const e of this.units.values()) {
       if (e.team === team) continue;
+      if (w && !canHitLayer(w, !!UNITS[e.kind].air)) continue;
       if (!vis[this.tileIndex(e.x, e.z)]) continue;
       const d = Math.hypot(e.x - x, e.z - z);
       if (d > radius) continue;
@@ -918,6 +969,7 @@ export class Game {
       }
     }
     if (best) return best;
+    if (w && !canHitLayer(w, false)) return null;
     for (const b of this.buildings.values()) {
       if (b.team === team) continue;
       const d = rectDist(x, z, b);
@@ -970,6 +1022,16 @@ export class Game {
       return false;
     }
     const heading = Math.atan2(dz, dx);
+    if (d.air) {
+      // aeronaves voam em linha reta e não colidem com o terreno
+      u.angle = turnToward(u.angle, heading, 5 * dt);
+      u.turret = u.angle;
+      const st = Math.min(dist, d.speed * dt);
+      u.x = Math.max(0.2, Math.min(this.map.w - 0.2, u.x + (dx / dist) * st));
+      u.z = Math.max(0.2, Math.min(this.map.h - 0.2, u.z + (dz / dist) * st));
+      u.moving = true;
+      return false;
+    }
     const turnRate = d.infantry ? 10 : d.kind === "scout" ? 5 : 3.2;
     u.angle = turnToward(u.angle, heading, turnRate * dt);
     if (!d.turret) u.turret = u.angle;
@@ -1013,7 +1075,7 @@ export class Game {
       target = undefined;
       u.targetId = null;
     }
-    if (target && target.team === u.team) {
+    if (target && (target.team === u.team || (w && !canHitLayer(w, isAir(target))))) {
       target = undefined;
       u.targetId = null;
     }
@@ -1121,7 +1183,7 @@ export class Game {
     const muzzle = d.infantry ? 0.25 : d.radius + 0.25;
     const sx = u.x + Math.cos(facing) * muzzle;
     const sz = u.z + Math.sin(facing) * muzzle;
-    const sy = d.infantry ? 0.32 : u.kind === "heavy" ? 0.6 : 0.5;
+    const sy = d.air ? AIR_ALT - 0.15 : d.infantry ? 0.32 : u.kind === "heavy" ? 0.6 : 0.5;
     if (u.burstLeft > 0) {
       u.burstTimer -= dt;
       if (u.burstTimer <= 0) {
@@ -1372,7 +1434,7 @@ export class Game {
     if (Math.abs(angleDiff(b.turret, aim)) < 0.15 && b.cooldown <= 0) {
       b.cooldown = w.reload;
       b.recoil = 1;
-      this.fire(b, target, w, cx + Math.cos(b.turret) * 0.55, cz + Math.sin(b.turret) * 0.55, 0.75);
+      this.fire(b, target, w, cx + Math.cos(b.turret) * 0.55, cz + Math.sin(b.turret) * 0.55, b.kind === "aa" ? 1.0 : 0.75);
     }
   }
 
@@ -1421,6 +1483,15 @@ export class Game {
         if (b.team === team) mark(b.tx + b.w / 2, b.tz + b.h / 2, BUILDINGS[b.kind].sight + Math.max(b.w, b.h) / 2);
     }
     this.visVersion++;
+    if (!this.airAlerted) {
+      for (const u of this.units.values()) {
+        if (u.team === 1 && UNITS[u.kind].air && this.teams[0].visible[this.tileIndex(u.x, u.z)]) {
+          this.airAlerted = true;
+          this.msg("Aeronaves inimigas avistadas! Torres Antiaéreas e Lança-mísseis as derrubam.", "warn");
+          break;
+        }
+      }
+    }
   }
 
   // ---------------------------------------------------------------- separação
@@ -1432,6 +1503,8 @@ export class Game {
       const ra = UNITS[a.kind].radius;
       for (let j = i + 1; j < arr.length; j++) {
         const b = arr[j];
+        const airA = !!UNITS[a.kind].air;
+        if (airA !== !!UNITS[b.kind].air) continue;
         const rb = UNITS[b.kind].radius;
         const dx = b.x - a.x;
         const dz = b.z - a.z;
@@ -1450,11 +1523,11 @@ export class Game {
         const az = a.z - nz * push * (am / tot) * 2;
         const bx = b.x + nx * push * (bm / tot) * 2;
         const bz = b.z + nz * push * (bm / tot) * 2;
-        if (this.inBounds(ax, az) && !this.isBlocked(this.tileIndex(ax, az))) {
+        if (this.inBounds(ax, az) && (airA || !this.isBlocked(this.tileIndex(ax, az)))) {
           a.x = ax;
           a.z = az;
         }
-        if (this.inBounds(bx, bz) && !this.isBlocked(this.tileIndex(bx, bz))) {
+        if (this.inBounds(bx, bz) && (airA || !this.isBlocked(this.tileIndex(bx, bz)))) {
           b.x = bx;
           b.z = bz;
         }

@@ -62,6 +62,10 @@ export function StartScreen({ onStart }: { onStart: (d: Difficulty) => void }) {
               Usinas geram energia. A Refinaria traz um Coletor que busca cristais dourados e os transforma em créditos. Energia baixa deixa tudo lento e
               desliga torres e radar.
             </HelpCard>
+            <HelpCard title="Aeronaves">
+              O Heliporto (requer Radar) produz Drones Vigia e Helicópteros Colibri, que voam por cima de rios e árvores. Só Torres Antiaéreas,
+              Fuzileiros, Lança-mísseis, Batedores e Drones conseguem atingi-los — tanques e artilharia não.
+            </HelpCard>
             <HelpCard title="Mouse e teclado">
               Esquerdo seleciona (arraste para área, duplo clique pega o mesmo tipo). Direito move, ataca ou coleta. Roda: zoom. Setas ou arrastar com o
               direito: câmera. A: atacar-mover, S: parar, H: base, Ctrl+1–9: grupos, Esc: menu.

@@ -9,6 +9,7 @@ export const TABS: { id: Producer; label: string }[] = [
   { id: "structure", label: "Base" },
   { id: "infantry", label: "Infantaria" },
   { id: "vehicle", label: "Veículos" },
+  { id: "air", label: "Aéreo" },
 ];
 
 export function formatTime(t: number) {
@@ -53,7 +54,7 @@ export function ResourceBar({ hud, compact }: { hud: HudSnapshot; compact?: bool
 
 export function Tabs({ tab, setTab, hud }: { tab: Producer; setTab: (p: Producer) => void; hud: HudSnapshot }) {
   return (
-    <div className="grid grid-cols-3 gap-1 rounded-xl bg-black/30 p-1">
+    <div className="grid grid-cols-4 gap-1 rounded-xl bg-black/30 p-1">
       {TABS.map((t) => {
         const active = hud.items[t.id].some((i) => i.progress !== null || i.ready);
         return (
@@ -61,12 +62,12 @@ export function Tabs({ tab, setTab, hud }: { tab: Producer; setTab: (p: Producer
             key={t.id}
             onClick={() => setTab(t.id)}
             className={cn(
-              "relative rounded-lg px-2 py-1.5 text-xs font-semibold transition",
+              "relative rounded-lg px-1 py-1.5 text-[11px] font-semibold transition",
               tab === t.id ? "bg-white/15 text-white shadow" : "text-white/55 hover:text-white/85",
             )}
           >
             {t.label}
-            {active && <span className="absolute right-1.5 top-1.5 size-1.5 rounded-full bg-emerald-400" />}
+            {active && <span className="absolute right-0.5 top-0.5 size-1.5 rounded-full bg-emerald-400" />}
           </button>
         );
       })}

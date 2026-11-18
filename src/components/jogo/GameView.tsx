@@ -209,7 +209,7 @@ export function GameView({ difficulty, onRestart, onMenu }: { difficulty: Diffic
     onPrimary: (id: number) =>
       withEngine((e) => {
         const b = e.game.buildings.get(id);
-        if (b) e.game.primary[b.kind === "barracks" ? "infantry" : "vehicle"] = id;
+        if (b) e.game.primary[b.kind === "barracks" ? "infantry" : b.kind === "helipad" ? "air" : "vehicle"] = id;
       })(),
     onStop: withEngine((e) => e.game.issueStop(ownSelectedUnits(e))),
     onClear: withEngine((e) => e.game.selected.clear()),

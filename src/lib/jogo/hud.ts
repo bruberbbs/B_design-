@@ -3,6 +3,7 @@
 import {
   BUILD_ORDER_INFANTRY,
   BUILD_ORDER_STRUCTURES,
+  BUILD_ORDER_AIR,
   BUILD_ORDER_VEHICLES,
   BUILDINGS,
   TEAM_COLORS,
@@ -81,6 +82,7 @@ export function snapshot(g: Game): HudSnapshot {
     ["structure", BUILD_ORDER_STRUCTURES],
     ["infantry", BUILD_ORDER_INFANTRY],
     ["vehicle", BUILD_ORDER_VEHICLES],
+    ["air", BUILD_ORDER_AIR],
   ];
   for (const [p, kinds] of lists) {
     const q = ts.queues[p];
@@ -139,8 +141,8 @@ export function snapshot(g: Game): HudSnapshot {
                     : "Em movimento",
       };
     } else {
-      const multiple = (e.kind === "barracks" || e.kind === "factory") && g.countBuildings(0, e.kind) > 1;
-      const p: Producer = e.kind === "barracks" ? "infantry" : "vehicle";
+      const multiple = (e.kind === "barracks" || e.kind === "factory" || e.kind === "helipad") && g.countBuildings(0, e.kind) > 1;
+      const p: Producer = e.kind === "barracks" ? "infantry" : e.kind === "helipad" ? "air" : "vehicle";
       selection = {
         type: "single",
         id: e.id,
@@ -163,7 +165,7 @@ export function snapshot(g: Game): HudSnapshot {
     for (const e of sel) if (e.type === "unit") counts.set(e.kind, (counts.get(e.kind) ?? 0) + 1);
     selection = { type: "multi", total: sel.length, groups: [...counts].map(([kind, count]) => ({ kind, count })) };
   }
-  const hasCommandable = sel.some((e) => e.team === 0 && (e.type === "unit" || e.kind === "barracks" || e.kind === "factory"));
+  const hasCommandable = sel.some((e) => e.team === 0 && (e.type === "unit" || e.kind === "barracks" || e.kind === "factory" || e.kind === "helipad"));
 
   return {
     credits: Math.floor(ts.credits),

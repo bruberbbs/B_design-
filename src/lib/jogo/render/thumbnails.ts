@@ -48,13 +48,13 @@ export function renderThumbnails(size = 112): Record<string, string> {
   for (const k of Object.keys(UNITS) as UnitKind[]) {
     const m = kit.unit(k, 0);
     m.body.rotation.y = 0.5;
-    const r = UNITS[k].infantry ? 0.34 : k === "heavy" ? 0.72 : 0.6;
-    out[k] = shoot(m.root, r, UNITS[k].infantry ? 0.22 : 0.25);
+    const r = UNITS[k].infantry ? 0.34 : k === "heavy" || k === "heli" ? 0.72 : 0.6;
+    out[k] = shoot(m.root, r, UNITS[k].air ? 0 : UNITS[k].infantry ? 0.22 : 0.25);
   }
   for (const k of Object.keys(BUILDINGS) as BuildingKind[]) {
     const m = kit.building(k, 0);
     const d = BUILDINGS[k];
-    out[k] = shoot(m.root, Math.max(d.w, d.h) * 0.62 + 0.15, k === "turret" ? 0.3 : 0.5);
+    out[k] = shoot(m.root, Math.max(d.w, d.h) * 0.62 + 0.15, k === "turret" || k === "aa" ? 0.3 : 0.5);
   }
   renderer.dispose();
   renderer.forceContextLoss();

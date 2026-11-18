@@ -83,6 +83,7 @@ export class Sfx {
           if (v <= 0) break;
           this.budget--;
           if (e.weapon === "bullet") this.noiseBurst(0.07, 2400, "bandpass", 0.25 * v);
+          else if (e.weapon === "flak") this.noiseBurst(0.12, 1600, "bandpass", 0.3 * v, 500);
           else if (e.weapon === "cannon") {
             this.noiseBurst(0.25, 900, "lowpass", 0.5 * v, 120);
             this.tone(110, 0.18, "sine", 0.25 * v, 0, 50);

@@ -2,13 +2,19 @@
 
 export type Team = 0 | 1; // 0 = jogador, 1 = IA
 
-export type Armor = "none" | "light" | "heavy" | "building";
-export type WeaponKind = "bullet" | "cannon" | "rocket" | "shell";
+export type Armor = "none" | "light" | "heavy" | "building" | "aircraft";
+export type WeaponKind = "bullet" | "cannon" | "rocket" | "shell" | "flak";
 
-export type UnitKind = "rifle" | "rocket" | "scout" | "tank" | "heavy" | "artillery" | "harvester";
-export type BuildingKind = "hq" | "power" | "refinery" | "barracks" | "factory" | "radar" | "turret";
+export type UnitKind = "rifle" | "rocket" | "scout" | "tank" | "heavy" | "artillery" | "harvester" | "drone" | "heli";
+export type BuildingKind = "hq" | "power" | "refinery" | "barracks" | "factory" | "radar" | "turret" | "helipad" | "aa";
 
-export type Producer = "structure" | "infantry" | "vehicle";
+export type Producer = "structure" | "infantry" | "vehicle" | "air";
+
+// Alvos que uma arma consegue atingir.
+export type TargetLayer = "ground" | "air" | "both";
+
+// Altitude de voo das aeronaves (em tiles).
+export const AIR_ALT = 1.55;
 
 export interface Weapon {
   kind: WeaponKind;
@@ -19,6 +25,7 @@ export interface Weapon {
   splash?: number; // raio em tiles
   shots?: number; // tiros por rajada
   projectileSpeed?: number; // tiles/s (0 = instantâneo)
+  targets?: TargetLayer; // padrão: "ground"
 }
 
 export interface UnitDef {
@@ -34,6 +41,7 @@ export interface UnitDef {
   sight: number;
   radius: number;
   infantry: boolean;
+  air?: boolean;
   producer: Producer;
   requires: BuildingKind[];
   weapon?: Weapon;
@@ -72,7 +80,7 @@ export const UNITS: Record<UnitKind, UnitDef> = {
     infantry: true,
     producer: "infantry",
     requires: ["barracks"],
-    weapon: { kind: "bullet", damage: 9, range: 3.6, reload: 0.85 },
+    weapon: { kind: "bullet", damage: 9, range: 3.6, reload: 0.85, targets: "both" },
     turret: false,
   },
   rocket: {
@@ -90,7 +98,7 @@ export const UNITS: Record<UnitKind, UnitDef> = {
     infantry: true,
     producer: "infantry",
     requires: ["barracks"],
-    weapon: { kind: "rocket", damage: 34, range: 5, reload: 2.4, projectileSpeed: 9, splash: 0.4 },
+    weapon: { kind: "rocket", damage: 34, range: 5, reload: 2.4, projectileSpeed: 9, splash: 0.4, targets: "both" },
     turret: false,
   },
   scout: {
@@ -108,7 +116,7 @@ export const UNITS: Record<UnitKind, UnitDef> = {
     infantry: false,
     producer: "vehicle",
     requires: ["factory"],
-    weapon: { kind: "bullet", damage: 11, range: 4, reload: 0.5 },
+    weapon: { kind: "bullet", damage: 11, range: 4, reload: 0.5, targets: "both" },
     turret: true,
   },
   tank: {
@@ -180,6 +188,44 @@ export const UNITS: Record<UnitKind, UnitDef> = {
     infantry: false,
     producer: "vehicle",
     requires: ["factory", "refinery"],
+    turret: false,
+  },
+  drone: {
+    kind: "drone",
+    name: "Drone Vigia",
+    short: "Drone",
+    desc: "Aeronave rápida de reconhecimento. Enxerga longe e atira em tudo.",
+    cost: 600,
+    buildTime: 8,
+    hp: 110,
+    speed: 4.4,
+    armor: "aircraft",
+    sight: 9,
+    radius: 0.32,
+    infantry: false,
+    air: true,
+    producer: "air",
+    requires: ["helipad"],
+    weapon: { kind: "bullet", damage: 8, range: 3.6, reload: 0.45, targets: "both" },
+    turret: false,
+  },
+  heli: {
+    kind: "heli",
+    name: "Helicóptero Colibri",
+    short: "Colibri",
+    desc: "Helicóptero de ataque com mísseis. Arrasa blindados, mas teme antiaéreas.",
+    cost: 1200,
+    buildTime: 14,
+    hp: 260,
+    speed: 3.1,
+    armor: "aircraft",
+    sight: 7,
+    radius: 0.5,
+    infantry: false,
+    air: true,
+    producer: "air",
+    requires: ["helipad"],
+    weapon: { kind: "rocket", damage: 30, range: 4.8, reload: 1.5, shots: 2, projectileSpeed: 11, splash: 0.35 },
     turret: false,
   },
 };
@@ -284,18 +330,62 @@ export const BUILDINGS: Record<BuildingKind, BuildingDef> = {
     weapon: { kind: "cannon", damage: 28, range: 6.2, reload: 1.3, projectileSpeed: 15 },
     buildable: true,
   },
+  helipad: {
+    kind: "helipad",
+    name: "Heliporto",
+    desc: "Produz aeronaves: drones e helicópteros.",
+    cost: 1200,
+    buildTime: 12,
+    hp: 600,
+    w: 2,
+    h: 2,
+    power: -25,
+    sight: 5,
+    requires: ["radar"],
+    buildable: true,
+  },
+  aa: {
+    kind: "aa",
+    name: "Torre Antiaérea",
+    desc: "Canhão duplo que só atira em aeronaves. Precisa de energia.",
+    cost: 700,
+    buildTime: 8,
+    hp: 450,
+    w: 1,
+    h: 1,
+    power: -20,
+    sight: 8,
+    requires: ["radar"],
+    weapon: { kind: "flak", damage: 26, range: 7.5, reload: 0.7, projectileSpeed: 22, splash: 0.5, targets: "air" },
+    buildable: true,
+  },
 };
 
-export const BUILD_ORDER_STRUCTURES: BuildingKind[] = ["power", "refinery", "barracks", "factory", "radar", "turret"];
+export const BUILD_ORDER_STRUCTURES: BuildingKind[] = ["power", "refinery", "barracks", "factory", "radar", "turret", "helipad", "aa"];
 export const BUILD_ORDER_INFANTRY: UnitKind[] = ["rifle", "rocket"];
 export const BUILD_ORDER_VEHICLES: UnitKind[] = ["harvester", "scout", "tank", "artillery", "heavy"];
+export const BUILD_ORDER_AIR: UnitKind[] = ["drone", "heli"];
+
+// Construção que produz cada categoria.
+export const PRODUCER_BUILDING: Record<Producer, BuildingKind> = {
+  structure: "hq",
+  infantry: "barracks",
+  vehicle: "factory",
+  air: "helipad",
+};
+
+export function canHitLayer(w: Weapon, air: boolean) {
+  const t = w.targets ?? "ground";
+  return t === "both" || (t === "air") === air;
+}
 
 // Multiplicador de dano: arma x blindagem.
 export const DAMAGE_TABLE: Record<WeaponKind, Record<Armor, number>> = {
-  bullet: { none: 1, light: 0.6, heavy: 0.22, building: 0.25 },
-  cannon: { none: 0.35, light: 0.9, heavy: 1, building: 0.75 },
-  rocket: { none: 0.3, light: 1, heavy: 1.15, building: 0.6 },
-  shell: { none: 0.9, light: 1, heavy: 0.65, building: 1 },
+  bullet: { none: 1, light: 0.6, heavy: 0.22, building: 0.25, aircraft: 0.55 },
+  cannon: { none: 0.35, light: 0.9, heavy: 1, building: 0.75, aircraft: 0 },
+  rocket: { none: 0.3, light: 1, heavy: 1.15, building: 0.6, aircraft: 1.1 },
+  shell: { none: 0.9, light: 1, heavy: 0.65, building: 1, aircraft: 0 },
+  flak: { none: 0, light: 0, heavy: 0, building: 0, aircraft: 1 },
 };
 
 export const TEAM_COLORS: Record<Team, { main: string; dark: string; light: string; name: string }> = {

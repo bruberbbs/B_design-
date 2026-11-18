@@ -12,6 +12,7 @@ export interface UnitModel {
   turret: THREE.Object3D | null;
   barrel: THREE.Object3D | null;
   cargo: THREE.Object3D | null;
+  rotors: THREE.Object3D[];
   height: number;
 }
 
@@ -120,6 +121,7 @@ export class ModelKit {
     let turret: THREE.Object3D | null = null;
     let barrel: THREE.Object3D | null = null;
     let cargo: THREE.Object3D | null = null;
+    const rotors: THREE.Object3D[] = [];
     let height = 0.5;
     const main = this.team(team, "main");
     const dark = this.team(team, "dark");
@@ -227,6 +229,77 @@ export class ModelKit {
         height = 0.6;
         break;
       }
+      case "heli": {
+        // fuselagem arredondada
+        const hull = this.mesh(this.sphere(0.24, 20, 14), main, 0.05, 0, 0);
+        hull.scale.set(1.35, 0.9, 0.9);
+        body.add(hull);
+        const canopy = this.mesh(this.sphere(0.16, 16, 12), this.glass, 0.25, 0.04, 0);
+        canopy.scale.set(1.1, 0.85, 0.95);
+        body.add(canopy);
+        const tail = this.mesh(this.cyl(0.035, 0.07, 0.6, 10), main, -0.42, 0.05, 0);
+        tail.rotation.z = Math.PI / 2;
+        body.add(tail);
+        body.add(this.mesh(this.rbox(0.14, 0.2, 0.03, 0.015), dark, -0.7, 0.13, 0));
+        const tailRotor = new THREE.Group();
+        tailRotor.position.set(-0.7, 0.13, 0.04);
+        tailRotor.add(this.mesh(this.rbox(0.03, 0.22, 0.012, 0.006), this.darkSteel));
+        body.add(tailRotor);
+        rotors.push(tailRotor);
+        // esquis
+        for (const z of [0.15, -0.15]) {
+          const ski = this.mesh(this.capsule(0.022, 0.42), this.darkSteel, 0.05, -0.24, z);
+          ski.rotation.z = Math.PI / 2;
+          body.add(ski);
+          body.add(this.mesh(this.cyl(0.015, 0.015, 0.14, 6), this.darkSteel, 0.12, -0.17, z * 0.9));
+          body.add(this.mesh(this.cyl(0.015, 0.015, 0.14, 6), this.darkSteel, -0.06, -0.17, z * 0.9));
+        }
+        // casulos de mísseis
+        for (const z of [0.25, -0.25]) {
+          const pod = this.mesh(this.capsule(0.045, 0.16), dark, 0.06, -0.06, z);
+          pod.rotation.z = Math.PI / 2;
+          body.add(pod);
+          body.add(this.mesh(this.rbox(0.06, 0.02, 0.12, 0.008), this.darkSteel, 0.06, -0.03, z * 0.65));
+        }
+        // rotor principal
+        body.add(this.mesh(this.cyl(0.03, 0.04, 0.1, 8), this.darkSteel, 0.05, 0.25, 0));
+        const rotor = new THREE.Group();
+        rotor.position.set(0.05, 0.3, 0);
+        for (let i = 0; i < 2; i++) {
+          const blade = this.mesh(this.rbox(1.15, 0.015, 0.07, 0.007), this.tread);
+          blade.rotation.y = (i * Math.PI) / 2;
+          rotor.add(blade);
+        }
+        rotor.add(this.mesh(this.sphere(0.04), light));
+        body.add(rotor);
+        rotors.push(rotor);
+        height = 0.45;
+        break;
+      }
+      case "drone": {
+        const core = this.mesh(this.sphere(0.15, 18, 12), main);
+        core.scale.set(1.15, 0.55, 1.15);
+        body.add(core);
+        body.add(this.mesh(this.sphere(0.06, 12, 10), this.mat("eye", "#ff7a59", { emissive: "#ff3b1f", emissiveIntensity: 0.9 }), 0.15, -0.02, 0));
+        for (let i = 0; i < 4; i++) {
+          const a = Math.PI / 4 + (i * Math.PI) / 2;
+          const arm = this.mesh(this.rbox(0.28, 0.035, 0.05, 0.015), dark, Math.cos(a) * 0.17, 0.02, Math.sin(a) * 0.17);
+          arm.rotation.y = -a;
+          body.add(arm);
+          const hub = new THREE.Group();
+          hub.position.set(Math.cos(a) * 0.3, 0.05, Math.sin(a) * 0.3);
+          hub.add(this.mesh(this.torus(0.1, 0.014), light).rotateX(Math.PI / 2));
+          const prop = this.mesh(this.rbox(0.17, 0.01, 0.03, 0.005), this.tread);
+          hub.add(prop);
+          body.add(hub);
+          rotors.push(prop);
+        }
+        const gun = this.mesh(this.cyl(0.018, 0.018, 0.16, 6), this.darkSteel, 0.12, -0.08, 0);
+        gun.rotation.z = Math.PI / 2;
+        body.add(gun);
+        height = 0.25;
+        break;
+      }
       case "harvester": {
         for (const z of [0.25, -0.25]) body.add(this.mesh(this.rbox(0.9, 0.18, 0.18, 0.08), this.tread, 0, 0.1, z));
         body.add(this.mesh(this.rbox(0.92, 0.18, 0.56, 0.08), this.gold, 0, 0.25, 0));
@@ -255,7 +328,7 @@ export class ModelKit {
         break;
       }
     }
-    return { root, body, turret, barrel, cargo, height };
+    return { root, body, turret, barrel, cargo, rotors, height };
   }
 
   // ------------------------------------------------------------ construções
@@ -400,6 +473,51 @@ export class ModelKit {
         inner.add(s);
         spin = s;
         height = 1.5;
+        break;
+      }
+      case "helipad": {
+        pad(1.95, 1.95);
+        inner.add(this.mesh(this.cyl(0.78, 0.82, 0.08, 32), this.darkSteel, 0, 0.15, 0));
+        inner.add(this.mesh(this.torus(0.68, 0.035), this.mat("stripe", "#ffd84a"), 0, 0.2, 0).rotateX(Math.PI / 2));
+        // letra H
+        inner.add(this.mesh(this.rbox(0.08, 0.02, 0.6, 0.01), this.white, -0.18, 0.2, 0));
+        inner.add(this.mesh(this.rbox(0.08, 0.02, 0.6, 0.01), this.white, 0.18, 0.2, 0));
+        inner.add(this.mesh(this.rbox(0.36, 0.02, 0.08, 0.01), this.white, 0, 0.2, 0));
+        // torre de controle no canto
+        inner.add(this.mesh(this.cyl(0.12, 0.15, 0.55, 14), this.white, -0.8, 0.38, -0.8));
+        inner.add(this.mesh(this.cyl(0.19, 0.16, 0.16, 14), this.glass, -0.8, 0.72, -0.8));
+        inner.add(this.mesh(this.sphere(0.19, 14, 8, Math.PI * 2, Math.PI / 2), main, -0.8, 0.8, -0.8));
+        for (const [x, z] of [
+          [0.85, 0.85],
+          [-0.85, 0.85],
+          [0.85, -0.85],
+        ]) {
+          inner.add(this.mesh(this.sphere(0.05), this.mat("lamp", "#9ef6ff", { emissive: "#38d9ff", emissiveIntensity: 1 }), x, 0.17, z));
+        }
+        height = 1.1;
+        break;
+      }
+      case "aa": {
+        inner.add(this.mesh(this.cyl(0.4, 0.46, 0.28, 20), this.concrete, 0, 0.14, 0));
+        inner.add(this.mesh(this.torus(0.4, 0.05), dark, 0, 0.28, 0).rotateX(Math.PI / 2));
+        const t = new THREE.Group();
+        t.position.set(0, 0.4, 0);
+        t.add(this.mesh(this.rbox(0.38, 0.2, 0.36, 0.08), main, 0, 0, 0));
+        t.add(this.mesh(this.sphere(0.06), this.glass, 0.12, 0.1, 0.12));
+        const b = new THREE.Group();
+        b.position.set(0.05, 0.06, 0);
+        b.rotation.z = 0.75;
+        for (const z of [0.09, -0.09]) {
+          const bm = this.mesh(this.cyl(0.035, 0.04, 0.5, 10), this.darkSteel, 0.25, 0, z);
+          bm.rotation.z = Math.PI / 2;
+          b.add(bm);
+          b.add(this.mesh(this.torus(0.04, 0.012), light, 0.48, 0, z).rotateY(Math.PI / 2));
+        }
+        t.add(b);
+        inner.add(t);
+        turret = t;
+        barrel = b;
+        height = 1.0;
         break;
       }
       case "turret": {

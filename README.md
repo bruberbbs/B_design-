@@ -33,11 +33,14 @@ Em <http://localhost:3000/jogo> há também um jogo de **estratégia em tempo re
 ![Base do jogador em Maré de Aço](docs/screenshots/jogo-base.png)
 
 - **Economia**: Usinas geram energia; a Refinaria traz um Coletor que busca cristais dourados e os converte em créditos. Com energia baixa a produção fica lenta e torres e radar desligam.
-- **Construções**: Centro de Comando, Usina, Refinaria, Quartel, Fábrica de Blindados, Radar (liga o minimapa) e Torre de Defesa. Dá para reparar, vender e escolher a fábrica principal.
+- **Construções**: Centro de Comando, Usina, Refinaria, Quartel, Fábrica de Blindados, Radar (liga o minimapa), Heliporto, Torre de Defesa e Torre Antiaérea. Dá para reparar, vender e escolher a fábrica principal.
 - **Unidades**: Fuzileiro, Lança-mísseis, Batedor, Tanque Vespa, Tanque Titã, Morteiro Móvel e Coletor, com tipos de arma e blindagem (bala, canhão, míssil e artilharia com dano em área).
+- **Aeronaves**: Drone Vigia (rápido, enxerga longe) e Helicóptero Colibri (mísseis antiblindagem). Voam em linha reta por cima de rios, rochas e árvores. Só armas antiaéreas as atingem: Torre Antiaérea, Fuzileiro, Lança-mísseis, Batedor e o próprio Drone; tanques, artilharia e a Torre de Defesa não.
 - **IA** em três dificuldades: ergue a base, mantém coletores, defende e ataca em ondas.
 - **Névoa de guerra**, explosões, fumaça, marcas de queimado e sons sintetizados.
 - **Controles**: mouse e teclado (esquerdo seleciona, direito comanda, A atacar-mover, S parar, Ctrl+1–9 grupos) ou toque (toque comanda, arrastar move a câmera, pinça dá zoom).
+
+![Helicópteros e drones sob fogo antiaéreo](docs/screenshots/jogo-aereo.png)
 
 | Combate | Celular |
 | --- | --- |

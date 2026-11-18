@@ -1,7 +1,7 @@
 // Cena 3D: câmera isométrica, terreno, névoa de guerra, entidades e efeitos.
 
 import * as THREE from "three";
-import { BUILDINGS, TEAM_COLORS, UNITS, type BuildingKind, type Team } from "../defs";
+import { AIR_ALT, BUILDINGS, TEAM_COLORS, UNITS, type BuildingKind, type Team } from "../defs";
 import type { Building, Entity, Game, GameEvent, Unit } from "../game";
 import { mulberry32, Terrain } from "../map";
 import { ModelKit, type BuildingModel, type UnitModel } from "./models";
@@ -669,7 +669,7 @@ export class GameRenderer {
     for (const u of this.game.units.values()) {
       const v = this.views.get(u.id);
       if (!v || !v.model.root.visible) continue;
-      const s = this.worldToScreen(u.x, 0.2, u.z);
+      const s = this.worldToScreen(u.x, UNITS[u.kind].air ? AIR_ALT : 0.2, u.z);
       const d = Math.hypot(s.x - px, s.y - py);
       if (d < bd) {
         bd = d;
@@ -687,7 +687,7 @@ export class GameRenderer {
     const out: number[] = [];
     for (const u of this.game.units.values()) {
       if (u.team !== team) continue;
-      const s = this.worldToScreen(u.x, 0.2, u.z);
+      const s = this.worldToScreen(u.x, UNITS[u.kind].air ? AIR_ALT : 0.2, u.z);
       if (s.x >= minX && s.x <= maxX && s.y >= minY && s.y <= maxY) out.push(u.id);
     }
     return out;
@@ -831,7 +831,22 @@ export class GameRenderer {
       m.root.position.set(u.x, 0, u.z);
       m.body.rotation.y = -u.angle;
       const d = UNITS[u.kind];
-      if (d.infantry) {
+      let barY = m.height + 0.18;
+      if (d.air) {
+        // decolagem suave, flutuação e inclinação ao voar
+        const k = Math.min(1, Math.max(0, (g.time - u.bornAt) / 1.3));
+        const alt = (0.3 + (AIR_ALT - 0.3) * (1 - Math.pow(1 - k, 3))) + Math.sin(t * 2.2 + u.id) * 0.05;
+        m.root.position.y = alt;
+        v.ring.position.y = -alt + 0.03;
+        const tilt = u.moving ? -0.18 : 0;
+        m.body.rotation.z += (tilt - m.body.rotation.z) * Math.min(1, dt * 4);
+        const spin = dt * (u.kind === "drone" ? 45 : 30);
+        m.rotors.forEach((r, i) => {
+          if (u.kind === "heli" && i === 0) r.rotation.z += spin;
+          else r.rotation.y += spin;
+        });
+        barY = alt + m.height + 0.2;
+      } else if (d.infantry) {
         m.body.position.y = u.moving ? Math.abs(Math.sin(t * 13 + u.id)) * 0.035 : 0;
       } else if (u.moving) {
         m.body.position.y = Math.sin(t * 22 + u.id) * 0.006;
@@ -857,7 +872,7 @@ export class GameRenderer {
       }
       const sel = g.selected.has(u.id);
       v.ring.visible = sel;
-      this.updateBar(v, u, m.height + 0.18, visible && (sel || u.hp < u.maxHp));
+      this.updateBar(v, u, barY, visible && (sel || u.hp < u.maxHp));
     }
     for (const b of g.buildings.values()) {
       seen.add(b.id);
@@ -1033,13 +1048,32 @@ export class GameRenderer {
     }
   }
 
-  private tracer(x: number, y: number, z: number, tx: number, tz: number) {
+  private tracer(x: number, y: number, z: number, tx: number, ty: number, tz: number) {
     const n = 4;
     for (let i = 0; i < n; i++) {
       const k = (i + Math.random()) / n;
-      this.fire.emit({ x: x + (tx - x) * k, y: y + (0.25 - y) * k, z: z + (tz - z) * k, life: 0.07, size0: 0.07, size1: 0.03, color: "#fff2a0" });
+      this.fire.emit({ x: x + (tx - x) * k, y: y + (ty - y) * k, z: z + (tz - z) * k, life: 0.07, size0: 0.07, size1: 0.03, color: "#fff2a0" });
     }
-    this.fire.emit({ x: tx + (Math.random() - 0.5) * 0.2, y: 0.25, z: tz + (Math.random() - 0.5) * 0.2, life: 0.1, size0: 0.1, size1: 0.02, color: "#ffe08a" });
+    this.fire.emit({ x: tx + (Math.random() - 0.5) * 0.2, y: ty, z: tz + (Math.random() - 0.5) * 0.2, life: 0.1, size0: 0.1, size1: 0.02, color: "#ffe08a" });
+  }
+
+  // estouro de flak: nuvem escura com clarão
+  private flakBurst(x: number, y: number, z: number) {
+    this.fire.emit({ x, y, z, life: 0.12, size0: 0.5, size1: 0.1, color: "#fff2b0", color1: "#ff9a3a" });
+    for (let i = 0; i < 5; i++)
+      this.smoke.emit({
+        x: x + (Math.random() - 0.5) * 0.3,
+        y: y + (Math.random() - 0.5) * 0.3,
+        z: z + (Math.random() - 0.5) * 0.3,
+        vy: 0.1,
+        life: 1 + Math.random() * 0.6,
+        size0: 0.2,
+        size1: 0.55,
+        color: "#3a3a40",
+        color1: "#77777e",
+        alpha: 0.65,
+        drag: 2,
+      });
   }
 
   ping(x: number, z: number, attack: boolean) {
@@ -1086,13 +1120,17 @@ export class GameRenderer {
           if (!g.isVisible(0, e.x, e.z) && !g.isVisible(0, e.tx, e.tz)) break;
           if (e.weapon === "bullet") {
             this.muzzle(e.x, e.y, e.z, e.tx, e.tz, false);
-            this.tracer(e.x, e.y, e.z, e.tx, e.tz);
+            this.tracer(e.x, e.y, e.z, e.tx, e.ty, e.tz);
           } else this.muzzle(e.x, e.y, e.z, e.tx, e.tz, e.weapon !== "rocket");
           break;
         }
         case "impact":
           if (!g.isVisible(0, e.x, e.z)) break;
-          this.explosion(e.x, e.z, e.big ? 0.75 : e.weapon === "cannon" ? 0.35 : 0.45, 0.15);
+          if (e.weapon === "flak") {
+            this.flakBurst(e.x, e.y, e.z);
+            break;
+          }
+          this.explosion(e.x, e.z, e.big ? 0.75 : e.weapon === "cannon" ? 0.35 : 0.45, Math.max(0.15, e.y - 0.1));
           if (e.big) this.scorch(e.x, e.z, 0.7);
           break;
         case "death":
@@ -1100,6 +1138,32 @@ export class GameRenderer {
           if (e.infantry) {
             for (let i = 0; i < 8; i++)
               this.smoke.emit({ x: e.x, y: 0.2, z: e.z, vx: (Math.random() - 0.5) * 1.2, vy: 0.5 + Math.random(), vz: (Math.random() - 0.5) * 1.2, life: 0.8, size0: 0.12, size1: 0.35, color: "#8a7c66", alpha: 0.6, drag: 2 });
+          } else if (e.air) {
+            // explode no ar, destroços caem e estouram no chão
+            this.explosion(e.x, e.z, 0.7 + e.size, e.y);
+            for (let i = 0; i < 10; i++)
+              this.smoke.emit({
+                x: e.x,
+                y: e.y,
+                z: e.z,
+                vx: (Math.random() - 0.5) * 1.6,
+                vy: Math.random() * 1.5,
+                vz: (Math.random() - 0.5) * 1.6,
+                gravity: 6,
+                life: 0.9,
+                size0: 0.12,
+                size1: 0.08,
+                color: "#2b2b30",
+                alpha: 0.9,
+              });
+            const { x, z } = e;
+            this.delayed.push({
+              at: this.clock + 0.55,
+              fn: () => {
+                this.explosion(x, z, 0.6, 0.2);
+                this.scorch(x, z, 0.8);
+              },
+            });
           } else {
             this.explosion(e.x, e.z, 0.9 + e.size, 0.3);
             this.scorch(e.x, e.z, 0.9);
